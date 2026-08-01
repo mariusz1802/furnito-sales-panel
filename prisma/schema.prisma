@@ -1,0 +1,157 @@
+// Furnito Panel — schemat bazy (barter mebli AD Awards)
+// Kwoty przechowujemy jako Float (zł). Docelowo (Postgres) można przejść na Decimal.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Producent mebli współpracujący w barterze
+model Client {
+  id           String        @id @default(cuid())
+  name         String
+  slug         String        @unique
+  status       ClientStatus  @default(ACTIVE)
+  barterLimit  Float?        // umówiony limit barteru w zł (opcjonalny), np. Roberto 10000
+  // autorytatywne sumy z arkusza (żółte komórki podsumowania) — mają pierwszeństwo w saldzie
+  ordersTotalSheet     Float? // KWOTA ZAMÓWIEŃ (meble wzięte)
+  servicesRealizedSheet Float? // KWOTA ZREALIZOWANYCH ZLECEŃ (usługi zrealizowane)
+  marketplaces String        @default("") // CSV np. "ALLEGRO,ERLI"
+  handledBy    String?       // kto prowadzi (Darek, Marcin, ...)
+  sheetUrl     String?       // link do arkusza Google
+  notes        String?       // zasady, magazyn, dostawy
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  sales    Sale[]
+  services Service[]
+  products Product[]
+}
+
+enum ClientStatus {
+  ACTIVE
+  TEMPORARY
+  PAUSED
+  PROSPECT
+}
+
+// Usługa dostarczona przez AD Awards (KWOTA ZREALIZOWANYCH ZLECEŃ) — zwiększa saldo do "odrobienia"
+model Service {
+  id        String        @id @default(cuid())
+  clientId  String
+  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String        // np. "SEO maj", "FB prowadzenie", "ecommerce 1 m-c"
+  amount    Float
+  status    ServiceStatus @default(DELIVERED)
+  period    String?       // np. "maj 2026"
+  date      DateTime      @default(now())
+  createdAt DateTime      @default(now())
+
+  @@index([clientId])
+}
+
+enum ServiceStatus {
+  PLANNED
+  DELIVERED
+}
+
+// Sprzedany mebel (KWOTA ZAMÓWIEŃ) — zmniejsza saldo barteru
+model Sale {
+  id          String      @id @default(cuid())
+  clientId    String
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  productName String      // "MEBEL" — np. "Wersalka AURORA"
+  variant     String?     // kolor, np. "Beżowa", "Jasna Szara"
+  fabric      String?     // tkanina
+  buyer       String?     // "Nazwisko Klienta" — nabywca
+  amount      Float       // "kwota sprzedaży"
+  quantity    Int         @default(1)
+  marketplace Marketplace @default(MANUAL)
+  externalId  String?     // id zamówienia z marketplace
+  status      SaleStatus  @default(NEW)
+  soldAt      DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+
+  // --- kolumny z arkusza "dane sprzedażowe" (sync dwukierunkowy) ---
+  producer        String?   // "producent" — od kogo mebel (Cezar, KMK, ...)
+  barterAmount    Float?    // "kwota z barteru"
+  transportAmount Float?    // "kwota transportu"
+  cashStatus      String?   // "status kasy" — sposób/stan płatności
+  channel         String?   // surowa etykieta "Marketplace" z arkusza (np. "Allegro (Furnito)")
+  shippedAt       DateTime? // "data wysyłki"
+  receivedAt      DateTime? // "data otrzymania"
+  // parowanie z wierszem arkusza + ochrona przed pętlą sync (numer wiersza w arkuszu)
+  sheetRow        Int?
+  // znacznik ostatniej zmiany pochodzącej z aplikacji (do anty-pętli w webhooku)
+  lastSyncedFromApp DateTime?
+
+  @@unique([marketplace, externalId])
+  @@unique([sheetRow])
+  @@index([clientId])
+  @@index([soldAt])
+}
+
+enum Marketplace {
+  ALLEGRO
+  ERLI
+  MANUAL
+  OTHER
+}
+
+enum SaleStatus {
+  NEW
+  COMPLETED
+  CANCELLED
+  RESIGNED
+}
+
+// Katalog produktów wystawionych (do analizy "co się sprzedaje a co nie")
+model Product {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  variant   String?
+  fabric    String?
+  basePrice Float?
+  listedOn  String   @default("") // CSV marketplace'ów
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
+// Odbiorca powiadomień (SMS / e-mail)
+model Recipient {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String?
+  email        String?
+  active       Boolean  @default(true)
+  saleAlerts   Boolean  @default(true) // SMS/mail przy sprzedaży
+  weeklyReport Boolean  @default(true) // tygodniowe podsumowanie
+  createdAt    DateTime @default(now())
+}
+
+// Log wysłanych powiadomień
+model NotificationLog {
+  id        String   @id @default(cuid())
+  type      String   // SALE_ALERT | WEEKLY_REPORT
+  channel   String   // SMS | EMAIL
+  to        String
+  message   String
+  status    String   @default("SENT") // SENT | FAILED | SIMULATED
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+// Konfiguracja klucz-wartość (integracje, przełączniki)
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

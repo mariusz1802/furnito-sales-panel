@@ -1,26 +1,119 @@
 @import "tailwindcss";
 
+/* ============================================================
+   Furnito — brand furni.to: zieleń #50E089 + czerń.
+   ============================================================ */
+@theme {
+  /* primary — zieleń Furnito (#50E089 = brand-400, jasny akcent) */
+  --color-brand-50: #ecfdf3;
+  --color-brand-100: #d2fadf;
+  --color-brand-200: #a6f4c1;
+  --color-brand-300: #74e9a1;
+  --color-brand-400: #50e089; /* BRAND — akcenty, paski, aktywne stany */
+  --color-brand-500: #17b268; /* przyciski (czytelne z białym tekstem) */
+  --color-brand-600: #0f9a56;
+  --color-brand-700: #0d7a46;
+  --color-brand-800: #0f5f39;
+  --color-brand-900: #0c3f28;
+
+  /* ostrzeżenie */
+  --color-brass-50: #fef6e7;
+  --color-brass-100: #fbe6bf;
+  --color-brass-300: #f0c561;
+  --color-brass-400: #e3a72e;
+  --color-brass-500: #c4871a;
+  --color-brass-600: #9c6a12;
+
+  /* ponad stan */
+  --color-brick-50: #fdeceb;
+  --color-brick-100: #f8cfcc;
+  --color-brick-400: #ef5b52;
+  --color-brick-500: #dc352b;
+  --color-brick-600: #b3271f;
+
+  /* powierzchnie — biel + czerń */
+  --color-canvas: #f5f6f5;
+  --color-surface: #ffffff;
+  --color-line: #e7e8e6;
+  --color-ink: #0c0f0c;
+  --color-muted: #667066;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-bricolage), var(--font-inter), ui-sans-serif, sans-serif;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: var(--color-canvas);
+  --foreground: var(--color-ink);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Eyebrow — utylitarny mono label */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-brand-600);
+  font-weight: 500;
+}
+
+/* Tytuły i cyfry w Bricolage Grotesque */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Tekstura tkaniny na próbce klienta */
+.swatch-weave {
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.16) 0 2px,
+      transparent 2px 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(0, 0, 0, 0.09) 0 2px,
+      transparent 2px 4px
+    );
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cdd0cc;
+  border-radius: 9999px;
+  border: 2px solid var(--color-canvas);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a6aaa4;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise 0.4s ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
 }

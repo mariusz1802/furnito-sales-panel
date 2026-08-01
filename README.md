@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Furnito — panel barterów AD Awards
 
-## Getting Started
+Panel do zarządzania i automatyzacji barterów z producentami mebli: salda barterów,
+sprzedaż z Allegro/Erli, tygodniowe statystyki i powiadomienia SMS/e-mail.
 
-First, run the development server:
+## Uruchomienie (dev)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run db:migrate      # tworzy bazę SQLite (dev.db)
+npm run seed            # wgrywa 15 klientów + realne dane Cezara
+npm run dev             # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Reset danych do stanu demo: `npm run db:reset`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Co jest w środku
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Pulpit** — KPI, wykres sprzedaży tygodniowej, podział kanałów, salda klientów, feed sprzedaży.
+- **Klienci** — lista z saldem barteru (dostępne środki / „ponad stan"), karta klienta,
+  formularz „Dodaj klienta", dodawanie sprzedaży i usług.
+- **Sprzedaż** — historia zamówień + szybkie dodawanie (wyzwala powiadomienie).
+- **Statystyki** — co się sprzedaje / co stoi, podział wg kolorów i tkanin, kanały,
+  klienci bez sprzedaży.
+- **Powiadomienia** — odbiorcy, tryb symulacja/na żywo, test wysyłki, log.
+- **Integracje** — status Allegro/Erli/SMSAPI/e-mail, webhooki, import CSV.
 
-## Learn More
+## Logika barteru
 
-To learn more about Next.js, take a look at the following resources:
+`dostępne środki = usługi dostarczone − sprzedane meble`
+(patrz `src/lib/barter.ts`). Wartość dodatnia = zostały środki, ujemna = „ponad stan".
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Integracje
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Import CSV** — działa od ręki (Integracje → Import sprzedaży).
+- **Allegro / Erli** — webhooki `POST /api/webhooks/{allegro,erli}` przyjmują zamówienia
+  (`src/lib/ingest.ts` mapuje payload → sprzedaż, dedup po `externalId`, wysyła powiadomienie).
+  Realne wywołania API podłącza się po uzupełnieniu kluczy w `.env` — patrz `.env.example`.
+- **Powiadomienia** — domyślnie SYMULACJA (logowane, nie wysyłane). Po dodaniu
+  `SMSAPI_TOKEN` / konfiguracji e-mail przełącz „wysyłkę na żywo" na stronie Powiadomienia.
+- **Raport tygodniowy** — `GET /api/cron/weekly-report` (podłącz pod cron, np. poniedziałek rano).
 
-## Deploy on Vercel
+## Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Prisma 7 (SQLite, adapter
+better-sqlite3) · Recharts · lucide-react. Font display: Fraunces.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Produkcja (kolejny krok)
+
+Zamień SQLite na Postgres (Neon/Supabase) — zmień `provider` w `prisma/schema.prisma`
+i adapter w `src/lib/prisma.ts`, po czym `prisma migrate deploy`. Deploy np. na Vercel;
+cron raportu ustaw w `vercel.json`.
