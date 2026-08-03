@@ -201,24 +201,29 @@ export function matchClientByProducer(
   producer: string | null,
 ): ClientLite | null {
   const producerNorm = normHeader(producer ?? "");
-  if (!producerNorm.trim()) return null;
+  const producerCompact = producerNorm.replace(/\s+/g, ""); // "mebel craft" → "mebelcraft"
+  if (!producerCompact) return null;
 
   let best: ClientLite | null = null;
   let bestScore = 0;
   for (const c of clients) {
     const nameNorm = normHeader(c.name);
+    const nameCompact = nameNorm.replace(/\s+/g, "");
     const words = nameNorm
       .split(/[^a-z0-9]+/)
       .filter((w) => w.length >= 3 && !GENERIC_WORDS.has(w));
 
     let score = 0;
-    // cały producent zawarty w nazwie klienta (mocny sygnał)
-    if (producerNorm.length >= 3 && nameNorm.includes(producerNorm)) {
-      score = producerNorm.length + 5;
+    // cały producent zawarty w nazwie klienta — porównanie bez spacji
+    // (łączy "Mebel Craft" ↔ "MebelCraft", "Wu Ka" ↔ "Wuka")
+    if (producerCompact.length >= 3 && nameCompact.includes(producerCompact)) {
+      score = producerCompact.length + 5;
     }
-    // dowolne wyróżniające słowo klienta obecne w producencie
+    // dowolne wyróżniające słowo klienta obecne w producencie (ze/bez spacji)
     for (const w of words) {
-      if (producerNorm.includes(w)) score = Math.max(score, w.length);
+      if (producerNorm.includes(w) || producerCompact.includes(w)) {
+        score = Math.max(score, w.length);
+      }
     }
     if (score > bestScore) {
       bestScore = score;
