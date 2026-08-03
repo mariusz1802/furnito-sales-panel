@@ -46,6 +46,9 @@ yarn-error.log*
 /prisma/imported/
 /prisma/seed.ts
 
+# lokalne notatki z sekretami (tokeny, connection stringi) — NIGDY do repo
+*.local.md
+
 # local agent / editor tooling (nie należy do repo aplikacji)
 /.claude/
 /.claude-port
@@ -58,3 +61,6 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+.vercel
+.env*
