@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { notifyNewSale, sendSms, sendEmail } from "@/lib/notify";
 import { parseSalesCsv } from "@/lib/integrations";
+import { buildSalesSummarySms } from "@/lib/reports";
 import {
   appendSaleRow,
   updateSaleRow,
@@ -189,6 +190,33 @@ export async function sendTestNotificationAction(
         ? "wysłane"
         : `błąd: ${res.error}`;
   return { ok: res.status !== "FAILED", message: `Powiadomienie ${label}.` };
+}
+
+// ---- Podsumowanie sprzedaży SMS (prezentacyjnie) -----------------------
+export type SummaryState = { ok: boolean; message: string } | null;
+
+export async function sendSalesSummaryAction(
+  _prev: SummaryState,
+  formData: FormData,
+): Promise<SummaryState> {
+  const days = Number(formData.get("days")) || 30;
+  const text = await buildSalesSummarySms(days);
+  const recipients = await prisma.recipient.findMany({
+    where: { active: true, phone: { not: null } },
+  });
+  if (recipients.length === 0)
+    return { ok: false, message: "Brak odbiorców z numerem telefonu." };
+
+  const results = [];
+  for (const r of recipients) {
+    if (r.phone) results.push(await sendSms(r.phone, text, "SALES_SUMMARY", true));
+  }
+  const sent = results.filter((r) => r.status === "SENT").length;
+  revalidatePath("/powiadomienia");
+  return {
+    ok: sent > 0,
+    message: `Wysłano ${sent}/${results.length} SMS. Treść: „${text}"`,
+  };
 }
 
 export async function setSimulateAction(formData: FormData) {

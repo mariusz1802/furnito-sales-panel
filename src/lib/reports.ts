@@ -140,6 +140,60 @@ export async function getClientReport(
   };
 }
 
+const stripPl = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+/**
+ * Krótkie podsumowanie sprzedaży do SMS: hity + trend tygodniowy.
+ * Bez polskich znaków (żeby SMS był krótszy/tańszy).
+ */
+export async function buildSalesSummarySms(days = 30): Promise<string> {
+  const now = Date.now();
+  const from = new Date(now - days * DAY);
+  const sales = await prisma.sale.findMany({
+    where: { soldAt: { gte: from }, ...activeSale },
+    select: { productName: true, quantity: true, amount: true },
+  });
+
+  let total = 0;
+  let units = 0;
+  const map = new Map<string, { name: string; units: number }>();
+  for (const s of sales) {
+    total += s.amount;
+    units += s.quantity;
+    const name = resolveFabric(s.productName).display;
+    const e = map.get(name) ?? { name, units: 0 };
+    e.units += s.quantity;
+    map.set(name, e);
+  }
+  const top = [...map.values()].sort((a, b) => b.units - a.units).slice(0, 3);
+
+  // trend: ostatni tydzień vs poprzedni
+  const [tw, lw] = await Promise.all([
+    prisma.sale.aggregate({
+      _sum: { amount: true },
+      where: { soldAt: { gte: new Date(now - 7 * DAY) }, ...activeSale },
+    }),
+    prisma.sale.aggregate({
+      _sum: { amount: true },
+      where: {
+        soldAt: { gte: new Date(now - 14 * DAY), lt: new Date(now - 7 * DAY) },
+        ...activeSale,
+      },
+    }),
+  ]);
+  const twAmt = tw._sum.amount ?? 0;
+  const lwAmt = lw._sum.amount ?? 0;
+  const delta =
+    lwAmt > 0 ? Math.round(((twAmt - lwAmt) / lwAmt) * 100) : twAmt > 0 ? 100 : 0;
+  const trend = `Tydzien: ${Math.round(twAmt)} zl (${delta >= 0 ? "+" : ""}${delta}% vs poprz.)`;
+
+  const hits =
+    top.map((t) => `${t.name} ${t.units}szt`).join(", ") || "brak sprzedazy";
+  const text = `Furnito ${days} dni: ${Math.round(total)} zl, ${units} szt. Hity: ${hits}. ${trend}`;
+  return stripPl(text);
+}
+
 /** Krótka treść SMS: co się najlepiej sprzedaje na których sklepach. */
 export function buildTopProductsSms(shops: ShopTop[], label: string): string {
   if (shops.length === 0) return `Furnito (${label}): brak sprzedaży w tym okresie.`;

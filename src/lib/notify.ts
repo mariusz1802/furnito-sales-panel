@@ -45,8 +45,10 @@ export async function sendSms(
   to: string,
   message: string,
   type = "MANUAL",
+  force = false,
 ): Promise<SendResult> {
-  const simulate = await isSimulate();
+  // force = realna wysyłka niezależnie od globalnego przełącznika symulacji
+  const simulate = force ? false : await isSimulate();
   const token = process.env.SMSAPI_TOKEN;
   let result: SendResult;
 

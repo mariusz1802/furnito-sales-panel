@@ -20,6 +20,8 @@ type Body = {
   weeklyReport?: boolean;
   // testSms
   text?: string;
+  // cleanRecipients
+  keepNames?: string[];
 };
 
 export async function POST(request: Request) {
@@ -73,6 +75,15 @@ export async function POST(request: Request) {
     });
     revalidatePath("/powiadomienia");
     return NextResponse.json({ ok: true, added: b.name });
+  }
+
+  // Usuń wszystkich odbiorców poza podaną listą nazw (czyszczenie demo).
+  if (b.action === "cleanRecipients" && Array.isArray(b.keepNames)) {
+    const res = await prisma.recipient.deleteMany({
+      where: { name: { notIn: b.keepNames } },
+    });
+    revalidatePath("/powiadomienia");
+    return NextResponse.json({ ok: true, deleted: res.count });
   }
 
   // Realny test SMS na jeden numer (omija globalny przełącznik symulacji).

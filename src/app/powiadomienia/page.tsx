@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, Badge, SectionTitle } from "@/components/ui";
 import { TestNotifyForm } from "@/components/TestNotifyForm";
+import { SalesSummaryForm } from "@/components/SalesSummaryForm";
 import {
   setSimulateAction,
   addRecipientAction,
@@ -153,6 +154,18 @@ export default async function NotificationsPage() {
             </p>
           </Card>
         </div>
+      </div>
+
+      {/* Podsumowanie sprzedaży SMS */}
+      <div className="mt-6">
+        <SectionTitle eyebrow="Prezentacyjnie" title="Podsumowanie sprzedaży SMS" />
+        <Card className="p-5">
+          <p className="mb-3 text-sm text-muted">
+            Wyślij do odbiorców z numerem telefonu krótkie podsumowanie: hity
+            sprzedaży + trend tygodniowy. Wysyłka realna (SMS wychodzi od razu).
+          </p>
+          <SalesSummaryForm />
+        </Card>
       </div>
 
       {/* Log */}
