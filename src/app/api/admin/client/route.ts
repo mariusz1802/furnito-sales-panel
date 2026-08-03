@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Brak SMSAPI_TOKEN" }, { status: 400 });
     }
     const body = new URLSearchParams({
-      to: b.phone,
+      to: b.phone.replace(/[^0-9]/g, ""),
       message: b.text || "Furnito: testowy SMS z panelu.",
       format: "json",
     });

@@ -57,7 +57,9 @@ export async function sendSms(
   } else {
     try {
       // SMSAPI.pl — https://www.smsapi.pl/docs
-      const body = new URLSearchParams({ to, message, format: "json" });
+      // numer musi być czysty (bez spacji/+): "+48 577 505 536" → "48577505536"
+      const num = to.replace(/[^0-9]/g, "");
+      const body = new URLSearchParams({ to: num, message, format: "json" });
       if (process.env.SMSAPI_FROM) body.set("from", process.env.SMSAPI_FROM);
       const res = await fetch("https://api.smsapi.pl/sms.do", {
         method: "POST",
