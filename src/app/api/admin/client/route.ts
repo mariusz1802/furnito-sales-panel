@@ -22,6 +22,8 @@ type Body = {
   text?: string;
   // cleanRecipients
   keepNames?: string[];
+  // summaryText
+  days?: number;
 };
 
 export async function POST(request: Request) {
@@ -75,6 +77,13 @@ export async function POST(request: Request) {
     });
     revalidatePath("/powiadomienia");
     return NextResponse.json({ ok: true, added: b.name });
+  }
+
+  // Podgląd treści podsumowania (bez wysyłki).
+  if (b.action === "summaryText") {
+    const { buildSalesSummarySms } = await import("@/lib/reports");
+    const text = await buildSalesSummarySms(Number(b.days) || 30);
+    return NextResponse.json({ ok: true, text });
   }
 
   // Usuń wszystkich odbiorców poza podaną listą nazw (czyszczenie demo).
