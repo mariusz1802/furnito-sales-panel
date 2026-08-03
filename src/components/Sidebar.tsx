@@ -8,6 +8,7 @@ import {
   Users,
   ShoppingBag,
   BarChart3,
+  FileText,
   Bell,
   Cable,
 } from "lucide-react";
@@ -17,6 +18,7 @@ const nav = [
   { href: "/klienci", label: "Klienci", icon: Users },
   { href: "/sprzedaz", label: "Sprzedaż", icon: ShoppingBag },
   { href: "/statystyki", label: "Statystyki", icon: BarChart3 },
+  { href: "/raporty", label: "Raporty", icon: FileText },
   { href: "/powiadomienia", label: "Powiadomienia", icon: Bell },
   { href: "/integracje", label: "Integracje", icon: Cable },
 ];
