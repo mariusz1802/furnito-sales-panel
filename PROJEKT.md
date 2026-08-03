@@ -93,6 +93,18 @@ Nazwy (wartości w `.env` lokalnie i w Vercel → Settings → Environment Varia
 
 ---
 
+## Raporty sprzedaży ze sklepów (`/raporty`)
+
+Wybór klienta + zakres dat (presety: tydzień/miesiąc/pół roku/rok) → raport
+„co się sprzedaje" **na żywo ze sklepu klienta** + nasza sprzedaż barterowa + **PDF** (druk).
+
+- Integracje sklepów per klient (tabela `StoreConnection`): platforma + URL + poświadczenie.
+  - **WooCommerce** — [woocommerce.ts](src/lib/integrations/woocommerce.ts), Analytics API `wc-analytics/reports/products`.
+  - **Shoper** — [shoper.ts](src/lib/integrations/shoper.ts), webapi `/orders` + `/order-products` (Bearer).
+  - **PrestaShop** — [prestashop.ts](src/lib/integrations/prestashop.ts), Webservice `/api/orders?display=full`.
+- Dodawanie połączeń: `POST /api/admin/store-connection` (sekret; poświadczenia z `claude_desktop_config.json`, gitignored). Wartości i lista podłączonych — w `SEKRETY.local.md`.
+- **Słownik tkanin/kolorów** [fabrics.ts](src/lib/fabrics.ts): kody z nazw (np. „MONOLITH 02") → „Monolith Beżowy" w raportach i statystyce kolorów.
+
 ## Przydatne komendy
 
 ```bash
