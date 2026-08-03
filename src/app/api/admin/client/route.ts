@@ -12,6 +12,12 @@ type Body = {
   slug?: string;
   productName?: string;
   variant?: string;
+  // addRecipient
+  name?: string;
+  phone?: string;
+  email?: string;
+  saleAlerts?: boolean;
+  weeklyReport?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -51,6 +57,20 @@ export async function POST(request: Request) {
     revalidatePath("/sprzedaz");
     revalidatePath("/klienci");
     return NextResponse.json({ ok: true, deleted: res.count });
+  }
+
+  if (b.action === "addRecipient" && b.name) {
+    await prisma.recipient.create({
+      data: {
+        name: b.name,
+        phone: b.phone?.trim() || null,
+        email: b.email?.trim() || null,
+        saleAlerts: b.saleAlerts ?? true,
+        weeklyReport: b.weeklyReport ?? true,
+      },
+    });
+    revalidatePath("/powiadomienia");
+    return NextResponse.json({ ok: true, added: b.name });
   }
 
   return NextResponse.json({ ok: false, error: "Nieznana akcja." }, { status: 400 });
