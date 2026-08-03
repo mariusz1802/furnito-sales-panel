@@ -5,6 +5,7 @@ import { shoperProductReport } from "@/lib/integrations/shoper";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, StatCard, SectionTitle, Money } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
+import { RangePresets } from "@/components/RangePresets";
 import { marketplaceLabel } from "@/lib/labels";
 import {
   ShoppingBag,
@@ -82,7 +83,11 @@ export default async function ReportsPage({
       />
 
       <Card className="no-print p-5">
-        <form method="get" className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end">
+        <form
+          id="report-form"
+          method="get"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end"
+        >
           <label className="block">
             <span className="eyebrow mb-1 block">Klient</span>
             <select name="client" defaultValue={slug} className={inputCls} required>
@@ -108,6 +113,7 @@ export default async function ReportsPage({
             Generuj
           </button>
         </form>
+        <RangePresets />
       </Card>
 
       {slug && !report && (
