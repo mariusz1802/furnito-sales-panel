@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientReport } from "@/lib/reports";
 import { wooProductReport, type StoreProductReport } from "@/lib/integrations/woocommerce";
 import { shoperProductReport } from "@/lib/integrations/shoper";
+import { prestashopProductReport } from "@/lib/integrations/prestashop";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, StatCard, SectionTitle, Money } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
@@ -63,6 +64,12 @@ export default async function ReportsPage({
         );
       } else if (storeConn.platform === "shoper") {
         store = await shoperProductReport(
+          { baseUrl: storeConn.baseUrl, secret: storeConn.secret },
+          from,
+          to,
+        );
+      } else if (storeConn.platform === "prestashop") {
+        store = await prestashopProductReport(
           { baseUrl: storeConn.baseUrl, secret: storeConn.secret },
           from,
           to,
