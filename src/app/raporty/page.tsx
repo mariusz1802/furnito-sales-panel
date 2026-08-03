@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getClientReport } from "@/lib/reports";
 import { wooProductReport, type StoreProductReport } from "@/lib/integrations/woocommerce";
+import { shoperProductReport } from "@/lib/integrations/shoper";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, StatCard, SectionTitle, Money } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
@@ -51,13 +52,21 @@ export default async function ReportsPage({
     : null;
   let store: StoreProductReport | null = null;
   let storeError: string | null = null;
-  if (storeConn?.platform === "woocommerce") {
+  if (storeConn?.active) {
     try {
-      store = await wooProductReport(
-        { baseUrl: storeConn.baseUrl, username: storeConn.username, secret: storeConn.secret },
-        from,
-        to,
-      );
+      if (storeConn.platform === "woocommerce") {
+        store = await wooProductReport(
+          { baseUrl: storeConn.baseUrl, username: storeConn.username, secret: storeConn.secret },
+          from,
+          to,
+        );
+      } else if (storeConn.platform === "shoper") {
+        store = await shoperProductReport(
+          { baseUrl: storeConn.baseUrl, secret: storeConn.secret },
+          from,
+          to,
+        );
+      }
     } catch (e) {
       storeError = e instanceof Error ? e.message : String(e);
     }
