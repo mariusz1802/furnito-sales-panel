@@ -1,4 +1,4 @@
-import { detectColor } from "@/lib/reports";
+import { resolveFabric } from "@/lib/fabrics";
 import type { StoreProductReport, StoreTopProduct, StoreColorStat } from "@/lib/integrations/woocommerce";
 
 /**
@@ -67,17 +67,16 @@ export async function prestashopProductReport(
     for (const o of orders) {
       const rows = o.associations?.order_rows ?? [];
       for (const r of rows) {
-        const name = String(r.product_name ?? "—");
+        const { display, color } = resolveFabric(String(r.product_name ?? "—"));
         const qty = Number(r.product_quantity) || 0;
         const price = Number(r.unit_price_tax_incl) || 0;
         const revenue = price * qty;
-        const p = products.get(name) ?? { name, units: 0, revenue: 0 };
+        const p = products.get(display) ?? { name: display, units: 0, revenue: 0 };
         p.units += qty;
         p.revenue += revenue;
-        products.set(name, p);
+        products.set(display, p);
         totalUnits += qty;
         totalRevenue += revenue;
-        const color = detectColor(name);
         if (color) {
           const c = colors.get(color) ?? { name: color, units: 0 };
           c.units += qty;

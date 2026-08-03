@@ -1,4 +1,4 @@
-import { detectColor } from "@/lib/reports";
+import { resolveFabric } from "@/lib/fabrics";
 import type { StoreProductReport, StoreTopProduct, StoreColorStat } from "@/lib/integrations/woocommerce";
 
 /**
@@ -75,17 +75,16 @@ export async function shoperProductReport(
     for (const it of list) {
       const oid = String(it.order_id ?? "");
       if (!inRange.has(oid)) continue;
-      const name = String(it.name ?? "—");
+      const { display, color } = resolveFabric(String(it.name ?? "—"));
       const qty = Number(it.quantity) || 0;
       const price = Number(it.price) || 0;
       const revenue = price * qty;
-      const p = products.get(name) ?? { name, units: 0, revenue: 0 };
+      const p = products.get(display) ?? { name: display, units: 0, revenue: 0 };
       p.units += qty;
       p.revenue += revenue;
-      products.set(name, p);
+      products.set(display, p);
       totalUnits += qty;
       totalRevenue += revenue;
-      const color = detectColor(name);
       if (color) {
         const c = colors.get(color) ?? { name: color, units: 0 };
         c.units += qty;

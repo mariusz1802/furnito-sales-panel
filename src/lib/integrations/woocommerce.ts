@@ -1,4 +1,4 @@
-import { detectColor } from "@/lib/reports";
+import { resolveFabric } from "@/lib/fabrics";
 
 /**
  * Pobieranie "co się sprzedaje" ze sklepu WooCommerce klienta przez Analytics API
@@ -60,20 +60,22 @@ export async function wooProductReport(
   const rows = (await res.json()) as WcRow[];
   if (!Array.isArray(rows)) return { top: [], colors: [], totalUnits: 0, totalRevenue: 0 };
 
-  const top: StoreTopProduct[] = [];
+  const products = new Map<string, StoreTopProduct>();
   const colors = new Map<string, StoreColorStat>();
   let totalUnits = 0;
   let totalRevenue = 0;
 
   for (const r of rows) {
-    const name = r.extended_info?.name ?? "—";
+    const { display, color } = resolveFabric(r.extended_info?.name ?? "—");
     const units = Number(r.items_sold) || 0;
     const revenue = Number(r.net_revenue) || 0;
-    top.push({ name, units, revenue });
+    const p = products.get(display) ?? { name: display, units: 0, revenue: 0 };
+    p.units += units;
+    p.revenue += revenue;
+    products.set(display, p);
     totalUnits += units;
     totalRevenue += revenue;
 
-    const color = detectColor(name);
     if (color) {
       const c = colors.get(color) ?? { name: color, units: 0 };
       c.units += units;
@@ -82,7 +84,7 @@ export async function wooProductReport(
   }
 
   return {
-    top,
+    top: [...products.values()].sort((a, b) => b.units - a.units),
     colors: [...colors.values()].sort((a, b) => b.units - a.units),
     totalUnits,
     totalRevenue,

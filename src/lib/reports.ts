@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { SaleStatus } from "@/generated/prisma/client";
 import { formatPLN } from "@/lib/format";
+import { resolveFabric } from "@/lib/fabrics";
 
 const DAY = 24 * 60 * 60 * 1000;
 const activeSale = {
@@ -68,35 +69,6 @@ export type ClientReport = {
   colors: ColorStat[];
 };
 
-// kolory/tkaniny spotykane w nazwach mebli (barter) — do rozpoznania "co w jakim kolorze"
-const COLOR_PATTERNS: { re: RegExp; label: string }[] = [
-  { re: /be[żz]ow|be[żz]\b/i, label: "Beżowy" },
-  { re: /szar/i, label: "Szary" },
-  { re: /grafit|antracyt/i, label: "Grafitowy" },
-  { re: /czarn/i, label: "Czarny" },
-  { re: /bia[łl]/i, label: "Biały" },
-  { re: /niebiesk|granat|błękit/i, label: "Niebieski" },
-  { re: /br[ąa]zow|br[ąa]z\b/i, label: "Brązowy" },
-  { re: /zielon|butelkow/i, label: "Zielony" },
-  { re: /[łl]ososi/i, label: "Łososiowy" },
-  { re: /popiel|srebrn/i, label: "Popielaty" },
-  { re: /kremow|krem\b/i, label: "Kremowy" },
-  { re: /mi[ęe]tow/i, label: "Miętowy" },
-  { re: /musztard/i, label: "Musztardowy" },
-  { re: /bordow|burgund/i, label: "Bordowy" },
-  { re: /czerwon/i, label: "Czerwony" },
-  { re: /[żz][óo][łl]t/i, label: "Żółty" },
-  { re: /pomarańcz|pomaranc/i, label: "Pomarańczowy" },
-  { re: /r[óo][żz]ow|r[óo][żz]\b/i, label: "Różowy" },
-  { re: /fiolet|wrzos/i, label: "Fioletowy" },
-  { re: /turkus/i, label: "Turkusowy" },
-];
-
-export function detectColor(text: string): string | null {
-  for (const c of COLOR_PATTERNS) if (c.re.test(text)) return c.label;
-  return null;
-}
-
 /** Raport sprzedaży jednego klienta w zakresie [from, to]. */
 export async function getClientReport(
   clientSlug: string,
@@ -135,20 +107,19 @@ export async function getClientReport(
     totalAmount += s.amount;
     totalUnits += s.quantity;
 
-    const p = products.get(s.productName) ?? { name: s.productName, units: 0, amount: 0 };
+    // kod tkaniny → czytelna nazwa + kolor
+    const { display, color } = resolveFabric(s.productName);
+
+    const p = products.get(display) ?? { name: display, units: 0, amount: 0 };
     p.units += s.quantity;
     p.amount += s.amount;
-    products.set(s.productName, p);
+    products.set(display, p);
 
     const ch = channels.get(s.marketplace) ?? { name: s.marketplace, units: 0, amount: 0 };
     ch.units += s.quantity;
     ch.amount += s.amount;
     channels.set(s.marketplace, ch);
 
-    const color =
-      detectColor(s.variant ?? "") ||
-      detectColor(s.fabric ?? "") ||
-      detectColor(s.productName);
     if (color) {
       const c = colors.get(color) ?? { name: color, units: 0 };
       c.units += s.quantity;
