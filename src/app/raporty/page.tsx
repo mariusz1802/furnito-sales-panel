@@ -1,10 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { getClientReport } from "@/lib/reports";
+import { wooProductReport, type StoreProductReport } from "@/lib/integrations/woocommerce";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, StatCard, SectionTitle, Money } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { marketplaceLabel } from "@/lib/labels";
-import { ShoppingBag, Package, Palette, CalendarRange } from "lucide-react";
+import {
+  ShoppingBag,
+  Package,
+  Palette,
+  CalendarRange,
+  Store,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +42,27 @@ export default async function ReportsPage({
 
   const report = slug ? await getClientReport(slug, from, to) : null;
   const maxUnits = report?.bestsellers[0]?.units ?? 1;
+
+  // sprzedaż ze sklepu klienta (na żywo), jeśli podłączony WooCommerce
+  const storeConn = slug
+    ? await prisma.storeConnection.findFirst({
+        where: { active: true, client: { slug } },
+      })
+    : null;
+  let store: StoreProductReport | null = null;
+  let storeError: string | null = null;
+  if (storeConn?.platform === "woocommerce") {
+    try {
+      store = await wooProductReport(
+        { baseUrl: storeConn.baseUrl, username: storeConn.username, secret: storeConn.secret },
+        from,
+        to,
+      );
+    } catch (e) {
+      storeError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  const storeMax = store?.top[0]?.units ?? 1;
 
   return (
     <>
@@ -94,9 +122,89 @@ export default async function ReportsPage({
             <PrintButton />
           </div>
 
+          {storeConn && (
+            <div>
+              <SectionTitle
+                eyebrow="Na żywo ze sklepu klienta"
+                title="Co sprzedaje sklep"
+              />
+              {storeError ? (
+                <Card className="p-5 text-sm text-brick-500">
+                  Nie udało się pobrać ze sklepu: {storeError}
+                </Card>
+              ) : store && store.top.length > 0 ? (
+                <>
+                  <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <StatCard
+                      label="Sztuk w sklepie"
+                      value={String(store.totalUnits)}
+                      icon={<Store size={20} />}
+                    />
+                    <StatCard
+                      label="Przychód sklepu"
+                      value={<Money value={store.totalRevenue} />}
+                      icon={<ShoppingBag size={20} />}
+                    />
+                  </div>
+                  <Card className="overflow-hidden p-0">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-line text-left text-xs text-muted">
+                          <th className="px-4 py-2 font-medium">Produkt (sklep)</th>
+                          <th className="px-4 py-2 text-right font-medium">Szt.</th>
+                          <th className="px-4 py-2 text-right font-medium">Przychód</th>
+                          <th className="w-24 px-4 py-2 font-medium" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {store.top.map((p) => (
+                          <tr key={p.name} className="border-b border-line/60 last:border-0">
+                            <td className="px-4 py-2 text-ink">{p.name}</td>
+                            <td className="px-4 py-2 text-right font-medium text-ink">{p.units}</td>
+                            <td className="px-4 py-2 text-right text-muted">
+                              <Money value={p.revenue} />
+                            </td>
+                            <td className="px-4 py-2">
+                              <div className="h-1.5 rounded-full bg-stone-100">
+                                <div
+                                  className="h-1.5 rounded-full bg-brand-500"
+                                  style={{ width: `${Math.round((p.units / storeMax) * 100)}%` }}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Card>
+                  {store.colors.length > 0 && (
+                    <Card className="mt-4 p-5">
+                      <p className="eyebrow mb-2">Kolory w sklepie</p>
+                      <div className="flex flex-wrap gap-2">
+                        {store.colors.map((c) => (
+                          <span
+                            key={c.name}
+                            className="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-600"
+                          >
+                            {c.name} · {c.units} szt.
+                          </span>
+                        ))}
+                      </div>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <Card className="p-5 text-sm text-muted">
+                  Brak sprzedaży w sklepie w tym okresie.
+                </Card>
+              )}
+            </div>
+          )}
+
+          <SectionTitle eyebrow="Panel · barter" title="Nasza sprzedaż barterowa" />
           {report.orderCount === 0 ? (
             <Card className="p-6 text-sm text-muted">
-              Brak sprzedaży w tym okresie dla klienta {report.client.name}.
+              Brak sprzedaży barterowej w tym okresie dla klienta {report.client.name}.
             </Card>
           ) : (
             <>

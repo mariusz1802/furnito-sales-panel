@@ -30,6 +30,22 @@ model Client {
   sales    Sale[]
   services Service[]
   products Product[]
+  store    StoreConnection?
+}
+
+// Połączenie ze sklepem klienta (WooCommerce / PrestaShop) — do raportów sprzedaży sklepu.
+// Uwaga: `secret` to poświadczenie do odczytu (najlepiej klucz READ-ONLY, nie hasło admina).
+model StoreConnection {
+  id        String   @id @default(cuid())
+  clientId  String   @unique
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  platform  String   // "woocommerce" | "prestashop"
+  baseUrl   String   // np. https://meblecezara.pl
+  username  String?  // login (WooCommerce Basic Auth); PrestaShop zwykle pusty
+  secret    String   // hasło aplikacji / klucz API (odczyt)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum ClientStatus {

@@ -92,7 +92,7 @@ const COLOR_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /turkus/i, label: "Turkusowy" },
 ];
 
-function detectColor(text: string): string | null {
+export function detectColor(text: string): string | null {
   for (const c of COLOR_PATTERNS) if (c.re.test(text)) return c.label;
   return null;
 }
