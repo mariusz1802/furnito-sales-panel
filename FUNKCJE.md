@@ -36,6 +36,25 @@ Wpis w arkuszu → w panelu w sekundy (i odwrotnie). Auto-odświeżanie widoków
 
 ---
 
+## 🧩 Co panel już potrafi (możliwości)
+
+- **Salda barteru per klient** — ile wzięliśmy mebli vs ile zrobiliśmy usług, „ponad stan" / „dostępne środki", % wykorzystania.
+- **Źródło prawdy = arkusze Moniki**, aktualizowane na żywo skryptem w każdym pliku.
+- **Rozbieżności** — panel sam pokazuje, gdzie sprzedaż „na żywo" nie zgadza się z Moniką.
+- **Raporty sprzedaży ze sklepów klientów** (WooCommerce / Shoper / PrestaShop) — TOP produkty, sztuki, przychód, kolory, dowolny zakres dat, **PDF**.
+- **Nasza sprzedaż barterowa** — bestsellery, kolory, kanały (Allegro/Erli/…).
+- **Tkaniny po ludzku** — kody (MONOLITH 02) zamieniane na „Monolith Beżowy".
+- **Dwukierunkowa synchronizacja** z arkuszem „dane sprzedażowe" + auto-odświeżanie widoków.
+- **Powiadomienia** SMS/e-mail (alerty sprzedaży, raport tygodniowy) — po podłączeniu kluczy.
+
+## 💡 Pomysły / w planach
+
+- **Raporty głosowe (AI):** mówisz „pokaż co sprzedał Cezar w ostatnim miesiącu" → panel rozpoznaje mowę, ustawia klienta + zakres i generuje raport (możliwe też głosowe podsumowanie). Wykonalne — patrz notatka w rozmowie.
+- **Panel do zarządzania połączeniami sklepów** (dodawanie/edycja bez kodu) + klucze read-only.
+- **Arkusze Moniki jako jeden plik z kartami** (opcjonalnie) zamiast osobnych plików.
+
+---
+
 ## Fundament (wdrożenie)
 
 - Panel na **Vercel**, baza **Prisma Postgres** (produkcja).
