@@ -6,7 +6,13 @@ import { prisma } from "@/lib/prisma";
  * Administracja klientami (chronione sekretem = SHEETS_WEBHOOK_SECRET).
  * Body: { secret, action: "delete", slug }
  */
-type Body = { secret?: string; action?: string; slug?: string };
+type Body = {
+  secret?: string;
+  action?: string;
+  slug?: string;
+  productName?: string;
+  variant?: string;
+};
 
 export async function POST(request: Request) {
   const secret = process.env.SHEETS_WEBHOOK_SECRET;
@@ -32,6 +38,19 @@ export async function POST(request: Request) {
     revalidatePath("/");
     revalidatePath("/klienci");
     return NextResponse.json({ ok: true, deleted: client.name });
+  }
+
+  if (b.action === "deleteSales" && b.productName) {
+    const res = await prisma.sale.deleteMany({
+      where: {
+        productName: b.productName,
+        ...(b.variant ? { variant: b.variant } : {}),
+      },
+    });
+    revalidatePath("/");
+    revalidatePath("/sprzedaz");
+    revalidatePath("/klienci");
+    return NextResponse.json({ ok: true, deleted: res.count });
   }
 
   return NextResponse.json({ ok: false, error: "Nieznana akcja." }, { status: 400 });
