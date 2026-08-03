@@ -38,9 +38,11 @@ export type BarterBalance = {
   /** wykorzystanie: wzięte / zrealizowane usługi (0..100+) */
   utilizationPct: number;
   limitUsedPct: number | null;
-  /** autorytatywna suma zamówień z arkusza Moniki (barterowego), jeśli jest */
+  /** autorytatywna suma zamówień z arkusza Moniki (ŹRÓDŁO PRAWDY salda) */
   monikaOrdersTotal: number | null;
-  /** różnica: soldFurniture (na żywo) − monikaOrdersTotal; 0 gdy brak odniesienia */
+  /** suma z arkusza "dane sprzedażowe" na żywo (do porównania) */
+  liveOrdersTotal: number;
+  /** różnica: na żywo − Monika; 0 gdy brak odniesienia */
   ordersDiscrepancy: number;
   /** czy rozbieżność jest istotna (>= 1 zł) i mamy z czym porównać */
   hasOrdersDiscrepancy: boolean;
@@ -84,20 +86,18 @@ export function computeBalance(
       ? sheet.servicesRealizedSheet
       : deliveredFromLines;
 
-  // meble wzięte: gdy klient ma pozycje z arkusza "dane sprzedażowe" — liczymy
-  // NA ŻYWO (suma kwot z barteru). Gdy nie ma — fallback do autorytatywnej sumy
-  // Moniki (żeby nie pokazywać 0 klientom spoza tego arkusza).
+  // ŹRÓDŁO PRAWDY: autorytatywna suma z arkusza Moniki. Arkusz "dane sprzedażowe"
+  // (na żywo) liczymy osobno tylko do PORÓWNANIA — tam łatwiej o błąd/brak
+  // aktualizacji. Gdy brak sumy Moniki — fallback do sumy na żywo.
   const monikaOrdersTotal = sheet?.ordersTotalSheet ?? null;
-  const soldBarterLines = sumBarter(sales);
+  const liveOrdersTotal = sumBarter(sales);
   const hasLiveSales = sales.some(ACTIVE_SALE);
-  const soldFurniture = hasLiveSales
-    ? soldBarterLines
-    : (monikaOrdersTotal ?? soldBarterLines);
+  const soldFurniture = monikaOrdersTotal ?? liveOrdersTotal;
 
-  // rozbieżność liczymy tylko gdy mamy oba źródła (live + suma Moniki)
+  // rozbieżność: o ile arkusz na żywo odbiega od Moniki (dodatnie = na żywo więcej)
   const ordersDiscrepancy =
     hasLiveSales && monikaOrdersTotal != null
-      ? soldBarterLines - monikaOrdersTotal
+      ? liveOrdersTotal - monikaOrdersTotal
       : 0;
   const hasOrdersDiscrepancy =
     hasLiveSales && monikaOrdersTotal != null && Math.abs(ordersDiscrepancy) >= 1;
@@ -121,6 +121,7 @@ export function computeBalance(
     utilizationPct,
     limitUsedPct,
     monikaOrdersTotal,
+    liveOrdersTotal,
     ordersDiscrepancy,
     hasOrdersDiscrepancy,
   };

@@ -85,15 +85,15 @@ export function BalanceCard({ client }: { client: ClientWithBalance }) {
         <div className="mt-3 flex items-start gap-1.5 rounded-lg bg-brass-50 px-3 py-2 text-xs text-brass-600 ring-1 ring-brass-100">
           <AlertTriangle size={13} className="mt-0.5 shrink-0" />
           <span>
-            Rozbieżność z arkuszem Moniki:{" "}
+            Arkusz na żywo odbiega od Moniki o{" "}
             <strong>
               {b.ordersDiscrepancy > 0 ? "+" : "−"}
               <Money value={Math.abs(b.ordersDiscrepancy)} />
             </strong>
             <br />
             <span className="text-brass-600">
-              Monika: <Money value={b.monikaOrdersTotal ?? 0} /> · na żywo:{" "}
-              <Money value={b.soldFurniture} />
+              Monika (źródło prawdy): <Money value={b.monikaOrdersTotal ?? 0} /> ·
+              na żywo: <Money value={b.liveOrdersTotal} />
             </span>
           </span>
         </div>
