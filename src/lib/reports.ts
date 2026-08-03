@@ -141,17 +141,35 @@ export async function getClientReport(
 }
 
 const stripPl = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  s
+    .replace(/ł/g, "l")
+    .replace(/Ł/g, "L")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
 
 /**
  * Krótkie podsumowanie sprzedaży do SMS: hity + trend tygodniowy.
- * Bez polskich znaków (żeby SMS był krótszy/tańszy).
+ * Opcjonalnie dla jednego klienta (clientSlug). Bez polskich znaków (tańszy SMS).
  */
-export async function buildSalesSummarySms(days = 30): Promise<string> {
+export async function buildSalesSummarySms(
+  days = 30,
+  clientSlug?: string,
+): Promise<string> {
   const now = Date.now();
   const from = new Date(now - days * DAY);
+  const clientFilter = clientSlug ? { client: { slug: clientSlug } } : {};
+
+  let label = "Furnito";
+  if (clientSlug) {
+    const c = await prisma.client.findUnique({
+      where: { slug: clientSlug },
+      select: { name: true },
+    });
+    if (c) label = c.name;
+  }
+
   const sales = await prisma.sale.findMany({
-    where: { soldAt: { gte: from }, ...activeSale },
+    where: { soldAt: { gte: from }, ...activeSale, ...clientFilter },
     select: { productName: true, quantity: true, amount: true },
   });
 
@@ -168,17 +186,18 @@ export async function buildSalesSummarySms(days = 30): Promise<string> {
   }
   const top = [...map.values()].sort((a, b) => b.units - a.units).slice(0, 3);
 
-  // trend: ostatni tydzień vs poprzedni
+  // trend: ostatni tydzień vs poprzedni (ten sam filtr klienta)
   const [tw, lw] = await Promise.all([
     prisma.sale.aggregate({
       _sum: { amount: true },
-      where: { soldAt: { gte: new Date(now - 7 * DAY) }, ...activeSale },
+      where: { soldAt: { gte: new Date(now - 7 * DAY) }, ...activeSale, ...clientFilter },
     }),
     prisma.sale.aggregate({
       _sum: { amount: true },
       where: {
         soldAt: { gte: new Date(now - 14 * DAY), lt: new Date(now - 7 * DAY) },
         ...activeSale,
+        ...clientFilter,
       },
     }),
   ]);
@@ -190,7 +209,7 @@ export async function buildSalesSummarySms(days = 30): Promise<string> {
 
   const hits =
     top.map((t) => `${t.name} ${t.units}szt`).join(", ") || "brak sprzedazy";
-  const text = `Furnito ${days} dni: ${Math.round(total)} zl, ${units} szt. Hity: ${hits}. ${trend}`;
+  const text = `${label} ${days} dni: ${Math.round(total)} zl, ${units} szt. Hity: ${hits}. ${trend}`;
   return stripPl(text);
 }
 

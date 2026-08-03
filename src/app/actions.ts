@@ -200,12 +200,18 @@ export async function sendSalesSummaryAction(
   formData: FormData,
 ): Promise<SummaryState> {
   const days = Number(formData.get("days")) || 30;
-  const text = await buildSalesSummarySms(days);
+  const client = String(formData.get("client") ?? "") || undefined;
+  const ids = formData.getAll("recipients").map(String).filter(Boolean);
+  const text = await buildSalesSummarySms(days, client);
+
   const recipients = await prisma.recipient.findMany({
-    where: { active: true, phone: { not: null } },
+    where: { id: { in: ids }, phone: { not: null } },
   });
   if (recipients.length === 0)
-    return { ok: false, message: "Brak odbiorców z numerem telefonu." };
+    return {
+      ok: false,
+      message: "Zaznacz przynajmniej jednego odbiorcę z numerem telefonu.",
+    };
 
   const results = [];
   for (const r of recipients) {

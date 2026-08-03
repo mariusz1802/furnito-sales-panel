@@ -32,10 +32,11 @@ const statusLabel: Record<string, string> = {
 };
 
 export default async function NotificationsPage() {
-  const [recipients, setting, logs] = await Promise.all([
+  const [recipients, setting, logs, clients] = await Promise.all([
     prisma.recipient.findMany({ orderBy: { name: "asc" } }),
     prisma.setting.findUnique({ where: { key: "notifications.simulate" } }),
     prisma.notificationLog.findMany({ orderBy: { createdAt: "desc" }, take: 15 }),
+    prisma.client.findMany({ orderBy: { name: "asc" }, select: { slug: true, name: true } }),
   ]);
   const simulate = setting?.value !== "false";
 
@@ -164,7 +165,10 @@ export default async function NotificationsPage() {
             Wyślij do odbiorców z numerem telefonu krótkie podsumowanie: hity
             sprzedaży + trend tygodniowy. Wysyłka realna (SMS wychodzi od razu).
           </p>
-          <SalesSummaryForm />
+          <SalesSummaryForm
+            clients={clients}
+            recipients={recipients.map((r) => ({ id: r.id, name: r.name, phone: r.phone }))}
+          />
         </Card>
       </div>
 
