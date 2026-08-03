@@ -177,21 +177,52 @@ export function parseRow(
 
 type ClientLite = { id: string; name: string; slug: string };
 
+// generyczne słowa w nazwach klientów — nie służą do dopasowania (za mało wyróżniające)
+const GENERIC_WORDS = new Set([
+  "meble",
+  "mebel",
+  "materace",
+  "materac",
+  "sofa",
+  "sklep",
+  "sklepy",
+  "manufaktura",
+  "wygody",
+  "comfy",
+]);
+
+/**
+ * Dopasowanie: producent z arkusza ("Cezar", "KMK", "RM Moś") → Client w bazie
+ * ("Meble Cezar", "KMK Meble", "RM Moś"). Porównujemy wyróżniające słowa nazwy
+ * klienta z tekstem producenta (dwukierunkowo), pomijając słowa generyczne.
+ */
 function matchClient(
   clients: ClientLite[],
   producer: string | null,
-  buyer: string | null,
 ): ClientLite | null {
-  const hay = `${producer ?? ""} ${buyer ?? ""}`.toLowerCase();
-  if (!hay.trim()) return null;
-  // najdłuższa nazwa klienta zawarta w "producent" wygrywa (KMK vs KMK Meble)
+  const producerNorm = normHeader(producer ?? "");
+  if (!producerNorm.trim()) return null;
+
   let best: ClientLite | null = null;
+  let bestScore = 0;
   for (const c of clients) {
-    const name = c.name.toLowerCase();
-    const key = c.slug.replace(/-/g, " ");
-    const token = name.split(/\s+/)[0]; // "cezar", "kmk", "roberto"...
-    if (hay.includes(name) || hay.includes(key) || (token.length >= 3 && hay.includes(token))) {
-      if (!best || c.name.length > best.name.length) best = c;
+    const nameNorm = normHeader(c.name);
+    const words = nameNorm
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 3 && !GENERIC_WORDS.has(w));
+
+    let score = 0;
+    // cały producent zawarty w nazwie klienta (mocny sygnał)
+    if (producerNorm.length >= 3 && nameNorm.includes(producerNorm)) {
+      score = producerNorm.length + 5;
+    }
+    // dowolne wyróżniające słowo klienta obecne w producencie
+    for (const w of words) {
+      if (producerNorm.includes(w)) score = Math.max(score, w.length);
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
     }
   }
   return best;
@@ -215,7 +246,7 @@ export async function upsertFromSheetSale(
   clients: ClientLite[],
 ): Promise<{ ok: boolean; skipped?: string }> {
   if (!s.ok) return { ok: false, skipped: "brak nazwy mebla" };
-  const client = matchClient(clients, s.producer, s.buyer);
+  const client = matchClient(clients, s.producer);
   if (!client) return { ok: false, skipped: `nie dopasowano klienta (producent: ${s.producer ?? "—"})` };
 
   const data = {
