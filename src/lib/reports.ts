@@ -259,20 +259,22 @@ export async function buildClientSmsSummary(
   const conn = await prisma.storeConnection.findFirst({
     where: { clientId: client.id, active: true },
   });
-  let storeLine = "SKLEP: brak podpiecia";
+  let storeBlock = "SKLEP:\n(brak podpiecia)";
   if (conn) {
     try {
       const rep = await fetchStore(conn, from, to);
       if (rep) {
         const top =
           rep.top
-            .slice(0, 2)
-            .map((p) => `${p.name} ${p.units}`)
-            .join(", ") || "-";
-        storeLine = `SKLEP: ${kzl(rep.totalRevenue)}/${rep.totalUnits}szt. Top: ${top}`;
+            .slice(0, 3)
+            .map((p) => `- ${p.name}: ${p.units} szt`)
+            .join("\n") || "-";
+        storeBlock = `SKLEP: ${kzl(rep.totalRevenue)}, ${rep.totalUnits} szt\n${top}`;
+      } else {
+        storeBlock = "SKLEP:\n(brak sprzedazy)";
       }
     } catch {
-      storeLine = "SKLEP: blad pobrania";
+      storeBlock = "SKLEP:\n(blad pobrania)";
     }
   }
 
@@ -292,12 +294,144 @@ export async function buildClientSmsSummary(
     e.units += s.quantity;
     map.set(n, e);
   }
-  const bTop = [...map.values()].sort((a, b) => b.units - a.units)[0];
-  const barterLine =
-    `FURNITO: ${kzl(bTotal)}/${bUnits}szt` +
-    (bTop ? `. Hit: ${bTop.name} ${bTop.units}` : "");
+  const bTop = [...map.values()].sort((a, b) => b.units - a.units).slice(0, 2);
+  const bHits = bTop.map((t) => `- ${t.name}: ${t.units} szt`).join("\n") || "-";
+  const barterBlock = `FURNITO (wzielismy): ${kzl(bTotal)}, ${bUnits} szt\n${bHits}`;
 
-  return stripPl(`${client.name} ${days}d\n${storeLine}\n${barterLine}`);
+  const header = `FURNITO - Raport Meblowy\n${client.name} (${days} dni)`;
+  return stripPl(`${header}\n\n${storeBlock}\n\n${barterBlock}`);
+}
+
+// per-store timeout, żeby jeden wolny sklep nie zawiesił całej strony
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    p.catch(() => null),
+    new Promise<null>((r) => setTimeout(() => r(null), ms)),
+  ]);
+}
+
+export type ClientOverviewRow = {
+  name: string;
+  slug: string;
+  hasStore: boolean;
+  storeOk: boolean;
+  storeRevenue: number;
+  storeUnits: number;
+  barterRevenue: number;
+  barterUnits: number;
+};
+
+/**
+ * Przegląd sprzedaży WSZYSTKICH klientów (do wyświetlenia w panelu):
+ * per klient — sprzedaż jego sklepu + co z niego wzięliśmy (barter).
+ */
+export async function getClientsSalesOverview(
+  days = 7,
+): Promise<ClientOverviewRow[]> {
+  const now = Date.now();
+  const from = new Date(now - days * DAY);
+  const to = new Date(now);
+
+  const clients = await prisma.client.findMany({
+    select: { id: true, name: true, slug: true, store: true },
+    orderBy: { name: "asc" },
+  });
+
+  const rows = await Promise.all(
+    clients.map(async (c) => {
+      let storeRevenue = 0;
+      let storeUnits = 0;
+      let storeOk = false;
+      const hasStore = !!c.store?.active;
+      if (c.store?.active) {
+        const rep = await withTimeout(fetchStore(c.store, from, to), 9000);
+        if (rep) {
+          storeOk = true;
+          storeRevenue = rep.totalRevenue;
+          storeUnits = rep.totalUnits;
+        }
+      }
+      const b = await prisma.sale.aggregate({
+        _sum: { amount: true, quantity: true },
+        where: { clientId: c.id, soldAt: { gte: from }, ...activeSale },
+      });
+      return {
+        name: c.name,
+        slug: c.slug,
+        hasStore,
+        storeOk,
+        storeRevenue,
+        storeUnits,
+        barterRevenue: b._sum.amount ?? 0,
+        barterUnits: b._sum.quantity ?? 0,
+      };
+    }),
+  );
+
+  return rows.sort(
+    (a, b) => b.storeRevenue + b.barterRevenue - (a.storeRevenue + a.barterRevenue),
+  );
+}
+
+/** Kwota kompaktowo bez "zl": 34400 → "34k", 3600 → "3.6k", 900 → "900". */
+const kc = (n: number): string =>
+  n >= 1000
+    ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "")}k`
+    : `${Math.round(n)}`;
+
+/** Krótka etykieta klienta (najbardziej wyróżniające słowo). */
+const shortClient = (name: string): string => {
+  const w = stripPl(name)
+    .replace(/[()/]/g, " ")
+    .split(/\s+/)
+    .filter((x) => x && !/^(meble|mebel|materace|materac|sofa|comfy|szydlowski)$/i.test(x));
+  return (w[0] || stripPl(name)).slice(0, 11);
+};
+
+/**
+ * Podsumowanie SMS O KAŻDYM KLIENCIE — ranking wg sprzedaży sklepu:
+ *   "Furnito 7d sklep/barter: Cezar 34k/3.6k, KMK 20k/2k, ..."
+ * (sklep = sprzedaż sklepu klienta, barter = co z niego wzięliśmy)
+ */
+export async function buildAllStoresSmsSummary(days = 7): Promise<string> {
+  const now = Date.now();
+  const from = new Date(now - days * DAY);
+  const to = new Date(now);
+
+  const conns = await prisma.storeConnection.findMany({
+    where: { active: true },
+    include: { client: { select: { id: true, name: true } } },
+  });
+  if (conns.length === 0)
+    return stripPl(`Furnito ${days}d: brak podpietych sklepow.`);
+
+  const rows = await Promise.all(
+    conns.map(async (c) => {
+      const [rep, bAgg] = await Promise.all([
+        fetchStore(c, from, to).catch(() => null),
+        prisma.sale.aggregate({
+          _sum: { amount: true },
+          where: { clientId: c.clientId, soldAt: { gte: from }, ...activeSale },
+        }),
+      ]);
+      return {
+        name: shortClient(c.client.name),
+        store: rep ? rep.totalRevenue : 0,
+        barter: bAgg._sum.amount ?? 0,
+      };
+    }),
+  );
+  rows.sort((a, b) => b.store - a.store);
+
+  const list = rows
+    .slice(0, 8)
+    .map((r) => `${r.name} ${kc(r.store)}/${kc(r.barter)}`)
+    .join(", ");
+  const more = rows.length > 8 ? ` +${rows.length - 8} innych` : "";
+
+  return stripPl(
+    `FURNITO - Raport Meblowy\nWszyscy (${days} dni), sklep/barter:\n${list}${more}`,
+  );
 }
 
 /** Krótka treść SMS: co się najlepiej sprzedaje na których sklepach. */

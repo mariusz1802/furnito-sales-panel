@@ -81,11 +81,11 @@ export async function POST(request: Request) {
 
   // Podgląd treści podsumowania (bez wysyłki). slug = konkretny klient (schemat sklep+furnito).
   if (b.action === "summaryText") {
-    const { buildSalesSummarySms, buildClientSmsSummary } = await import("@/lib/reports");
-    const days = Number(b.days) || 30;
+    const { buildAllStoresSmsSummary, buildClientSmsSummary } = await import("@/lib/reports");
+    const days = Number(b.days) || 7;
     const text = b.slug
       ? await buildClientSmsSummary(b.slug, days)
-      : await buildSalesSummarySms(days);
+      : await buildAllStoresSmsSummary(days);
     return NextResponse.json({ ok: true, text });
   }
 
