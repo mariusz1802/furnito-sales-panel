@@ -93,7 +93,7 @@ export default async function OverviewPage({
               <tr key={r.slug} className="border-b border-line/60 last:border-0">
                 <td className="px-4 py-2.5">
                   <Link
-                    href={`/raporty?client=${r.slug}&from=${new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)}`}
+                    href={`/raporty?client=${r.slug}&from=${fromIso}`}
                     className="font-medium text-ink hover:text-brand-600"
                   >
                     {r.name}
