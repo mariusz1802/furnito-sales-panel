@@ -20,6 +20,9 @@
 
 const WEBHOOK_URL = "https://furnito-sales-panel.vercel.app/api/webhooks/sheets";
 const SECRET = "5550af1c4b2fc1e0a4746aad7545662056d370cdb2abf07c";
+// USTAW nazwę klienta DOKŁADNIE jak w panelu (np. "RM Moś", "Meble Cezar").
+// Puste = spróbuje z A2 / nazwy pliku (mniej pewne).
+const CLIENT = "";
 
 /** Instalowany trigger — uruchom RAZ w każdym pliku. */
 function installBarterTrigger() {
@@ -60,8 +63,19 @@ function readTotals(sheet) {
     }
   }
   const clientName =
-    String((v[1] && v[1][0]) || "").trim() || SpreadsheetApp.getActive().getName();
+    (CLIENT && CLIENT.trim()) ||
+    String((v[1] && v[1][0]) || "").trim() ||
+    SpreadsheetApp.getActive().getName();
   return { clientName: clientName, orders: orders, services: services };
+}
+
+/** PODGLĄD: wypisuje w logu co odczytał (bez wysyłki). Uruchom, by sprawdzić liczby. */
+function test() {
+  const d = readTotals(SpreadsheetApp.getActive().getActiveSheet());
+  Logger.log(
+    "Klient: " + (d && d.clientName) + " | KWOTA ZAMÓWIEŃ: " + (d && d.orders) +
+    " | KWOTA ZREALIZOWANYCH: " + (d && d.services),
+  );
 }
 
 function sendTotals(sheet) {

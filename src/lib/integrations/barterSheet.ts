@@ -12,25 +12,6 @@ import { toNumber } from "@/lib/integrations/google";
  * servicesRealizedSheet). Dodanie/usunięcie karty nie wymaga zmian w kodzie.
  */
 
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
-async function uniqueSlug(base: string): Promise<string> {
-  const root = slugify(base) || "klient";
-  let slug = root;
-  let n = 1;
-  while (await prisma.client.findUnique({ where: { slug } })) {
-    slug = `${root}-${++n}`;
-  }
-  return slug;
-}
-
 // przyjmij liczbę lub tekst ("136 117,00 zł") → number | null
 function coerce(v: number | string | null | undefined): number | null {
   if (v == null || v === "") return null;
@@ -59,14 +40,17 @@ export async function upsertMonikaTotals(input: {
     ...(services != null ? { servicesRealizedSheet: services } : {}),
   };
 
-  if (match) {
-    await prisma.client.update({ where: { id: match.id }, data });
-    return { ok: true, action: "updated", client: match.name };
+  // Tylko DOPASOWANIE — nie tworzymy nowych klientów (unikamy duplikatów przy
+  // niedopasowanej nazwie). Nowego klienta dodaje się w panelu.
+  if (!match) {
+    return {
+      ok: false,
+      action: "updated",
+      client: name,
+      error: `Nie dopasowano klienta do nazwy "${name}". Ustaw CLIENT w skrypcie na nazwę z panelu.`,
+    };
   }
 
-  // nowa karta = nowy klient
-  await prisma.client.create({
-    data: { name, slug: await uniqueSlug(name), ...data },
-  });
-  return { ok: true, action: "created", client: name };
+  await prisma.client.update({ where: { id: match.id }, data });
+  return { ok: true, action: "updated", client: match.name };
 }
