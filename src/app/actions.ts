@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { notifyNewSale, sendSms, sendEmail } from "@/lib/notify";
 import { parseSalesCsv } from "@/lib/integrations";
-import { buildSalesSummarySms } from "@/lib/reports";
+import { buildSalesSummarySms, buildClientSmsSummary } from "@/lib/reports";
 import {
   appendSaleRow,
   updateSaleRow,
@@ -202,7 +202,10 @@ export async function sendSalesSummaryAction(
   const days = Number(formData.get("days")) || 30;
   const client = String(formData.get("client") ?? "") || undefined;
   const ids = formData.getAll("recipients").map(String).filter(Boolean);
-  const text = await buildSalesSummarySms(days, client);
+  // wybrany klient → schemat SKLEP + FURNITO; brak → zbiorczo barter
+  const text = client
+    ? await buildClientSmsSummary(client, days)
+    : await buildSalesSummarySms(days);
 
   const recipients = await prisma.recipient.findMany({
     where: { id: { in: ids }, phone: { not: null } },

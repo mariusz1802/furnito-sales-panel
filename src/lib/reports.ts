@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { SaleStatus } from "@/generated/prisma/client";
 import { formatPLN } from "@/lib/format";
 import { resolveFabric } from "@/lib/fabrics";
+import { wooProductReport, type StoreProductReport } from "@/lib/integrations/woocommerce";
+import { shoperProductReport } from "@/lib/integrations/shoper";
+import { prestashopProductReport } from "@/lib/integrations/prestashop";
 
 const DAY = 24 * 60 * 60 * 1000;
 const activeSale = {
@@ -211,6 +214,90 @@ export async function buildSalesSummarySms(
     top.map((t) => `${t.name} ${t.units}szt`).join(", ") || "brak sprzedazy";
   const text = `${label} ${days} dni: ${Math.round(total)} zl, ${units} szt. Hity: ${hits}. ${trend}`;
   return stripPl(text);
+}
+
+/** Kwota zwięźle do SMS: 12345 → "12.3k zl", 999 → "999 zl". */
+const kzl = (n: number): string =>
+  n >= 1000
+    ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k zl`
+    : `${Math.round(n)} zl`;
+
+async function fetchStore(
+  conn: { platform: string; baseUrl: string; username: string | null; secret: string },
+  from: Date,
+  to: Date,
+): Promise<StoreProductReport | null> {
+  if (conn.platform === "woocommerce")
+    return wooProductReport({ baseUrl: conn.baseUrl, username: conn.username, secret: conn.secret }, from, to);
+  if (conn.platform === "shoper")
+    return shoperProductReport({ baseUrl: conn.baseUrl, secret: conn.secret }, from, to);
+  if (conn.platform === "prestashop")
+    return prestashopProductReport({ baseUrl: conn.baseUrl, secret: conn.secret }, from, to);
+  return null;
+}
+
+/**
+ * Podsumowanie SMS dla JEDNEGO klienta — schemat 2 ujęć:
+ *   SKLEP:   jak sprzedaje sklep klienta (WooCommerce/Shoper/PrestaShop)
+ *   FURNITO: co z niego poszło do nas (barter, nasze pozycje sprzedaży)
+ */
+export async function buildClientSmsSummary(
+  clientSlug: string,
+  days = 7,
+): Promise<string> {
+  const now = Date.now();
+  const from = new Date(now - days * DAY);
+  const to = new Date(now);
+
+  const client = await prisma.client.findUnique({
+    where: { slug: clientSlug },
+    select: { id: true, name: true },
+  });
+  if (!client) return "Nie znaleziono klienta.";
+
+  // 1) SKLEP klienta
+  const conn = await prisma.storeConnection.findFirst({
+    where: { clientId: client.id, active: true },
+  });
+  let storeLine = "SKLEP: brak podpiecia";
+  if (conn) {
+    try {
+      const rep = await fetchStore(conn, from, to);
+      if (rep) {
+        const top =
+          rep.top
+            .slice(0, 2)
+            .map((p) => `${p.name} ${p.units}`)
+            .join(", ") || "-";
+        storeLine = `SKLEP: ${kzl(rep.totalRevenue)}/${rep.totalUnits}szt. Top: ${top}`;
+      }
+    } catch {
+      storeLine = "SKLEP: blad pobrania";
+    }
+  }
+
+  // 2) FURNITO — co wzieliśmy z niego (barter, nasze pozycje)
+  const sales = await prisma.sale.findMany({
+    where: { clientId: client.id, soldAt: { gte: from }, ...activeSale },
+    select: { productName: true, quantity: true, amount: true },
+  });
+  let bTotal = 0;
+  let bUnits = 0;
+  const map = new Map<string, { name: string; units: number }>();
+  for (const s of sales) {
+    bTotal += s.amount;
+    bUnits += s.quantity;
+    const n = resolveFabric(s.productName).display;
+    const e = map.get(n) ?? { name: n, units: 0 };
+    e.units += s.quantity;
+    map.set(n, e);
+  }
+  const bTop = [...map.values()].sort((a, b) => b.units - a.units)[0];
+  const barterLine =
+    `FURNITO: ${kzl(bTotal)}/${bUnits}szt` +
+    (bTop ? `. Hit: ${bTop.name} ${bTop.units}` : "");
+
+  return stripPl(`${client.name} ${days}d\n${storeLine}\n${barterLine}`);
 }
 
 /** Krótka treść SMS: co się najlepiej sprzedaje na których sklepach. */

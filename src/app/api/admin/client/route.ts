@@ -79,10 +79,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, added: b.name });
   }
 
-  // Podgląd treści podsumowania (bez wysyłki).
+  // Podgląd treści podsumowania (bez wysyłki). slug = konkretny klient (schemat sklep+furnito).
   if (b.action === "summaryText") {
-    const { buildSalesSummarySms } = await import("@/lib/reports");
-    const text = await buildSalesSummarySms(Number(b.days) || 30);
+    const { buildSalesSummarySms, buildClientSmsSummary } = await import("@/lib/reports");
+    const days = Number(b.days) || 30;
+    const text = b.slug
+      ? await buildClientSmsSummary(b.slug, days)
+      : await buildSalesSummarySms(days);
     return NextResponse.json({ ok: true, text });
   }
 
