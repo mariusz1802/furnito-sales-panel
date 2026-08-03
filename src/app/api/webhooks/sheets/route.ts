@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import {
+  bulkSyncFromRows,
   detectColumns,
   parseRow,
   reconcileSalesSheet,
@@ -28,6 +29,11 @@ type Payload = {
   header?: string[];
   row?: string[];
   reconcile?: boolean;
+  // tryb zbiorczy (Apps Script "wyślij wszystko")
+  bulk?: boolean;
+  rows?: string[][];
+  firstRow?: number;
+  replaceImport?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -50,7 +56,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Zły sekret." }, { status: 401 });
   }
 
-  // Tryb pełnej synchronizacji (np. z crona lub przycisku)
+  // Tryb zbiorczy: pełna synchronizacja wszystkich wierszy z Apps Script
+  if (body.bulk) {
+    if (!Array.isArray(body.header) || !Array.isArray(body.rows) || !body.firstRow) {
+      return NextResponse.json(
+        { ok: false, error: "Bulk wymaga: header[], rows[][], firstRow." },
+        { status: 400 },
+      );
+    }
+    const r = await bulkSyncFromRows(
+      body.header,
+      body.rows,
+      body.firstRow,
+      body.replaceImport === true,
+    );
+    revalidatePath("/");
+    revalidatePath("/sprzedaz");
+    revalidatePath("/klienci");
+    return NextResponse.json(r, { status: r.ok ? 200 : 422 });
+  }
+
+  // Tryb pełnej synchronizacji przez konto serwisowe (cron; wymaga Google API)
   if (body.reconcile) {
     const r = await reconcileSalesSheet();
     revalidatePath("/");

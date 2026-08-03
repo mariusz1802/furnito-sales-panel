@@ -16,7 +16,13 @@
  * na kolejne miesiące z góry) trzymamy osobno jako `committedServices` (informacyjnie).
  */
 
-export type SaleLike = { amount: number; quantity: number; status: string };
+export type SaleLike = {
+  amount: number;
+  quantity: number;
+  status: string;
+  /** "kwota z barteru" — wartość barterowa mebla (podstawa salda barteru) */
+  barterAmount?: number | null;
+};
 export type ServiceLike = { amount: number; status: string };
 
 export type BarterBalance = {
@@ -24,7 +30,7 @@ export type BarterBalance = {
   deliveredServices: number;
   /** cała zakontraktowana wartość (DELIVERED + PLANNED) — informacyjnie */
   committedServices: number;
-  /** meble wzięte (KWOTA ZAMÓWIEŃ) */
+  /** meble wzięte (KWOTA ZAMÓWIEŃ) — na żywo z arkusza "dane sprzedażowe" */
   soldFurniture: number;
   /** deliveredServices − soldFurniture (ujemne = ponad stan) */
   available: number;
@@ -32,13 +38,27 @@ export type BarterBalance = {
   /** wykorzystanie: wzięte / zrealizowane usługi (0..100+) */
   utilizationPct: number;
   limitUsedPct: number | null;
+  /** autorytatywna suma zamówień z arkusza Moniki (barterowego), jeśli jest */
+  monikaOrdersTotal: number | null;
+  /** różnica: soldFurniture (na żywo) − monikaOrdersTotal; 0 gdy brak odniesienia */
+  ordersDiscrepancy: number;
+  /** czy rozbieżność jest istotna (>= 1 zł) i mamy z czym porównać */
+  hasOrdersDiscrepancy: boolean;
 };
 
 const ACTIVE_SALE = (s: SaleLike) =>
   s.status !== "CANCELLED" && s.status !== "RESIGNED";
 
+/** Suma wartości SPRZEDAŻY (kwota sprzedaży / resale). */
 export function sumSales(sales: SaleLike[]): number {
   return sales.filter(ACTIVE_SALE).reduce((acc, s) => acc + (s.amount || 0), 0);
+}
+
+/** Suma wartości BARTEROWEJ (kwota z barteru); fallback do amount, gdy brak. */
+export function sumBarter(sales: SaleLike[]): number {
+  return sales
+    .filter(ACTIVE_SALE)
+    .reduce((acc, s) => acc + (s.barterAmount ?? s.amount ?? 0), 0);
 }
 
 export type SheetTotals = {
@@ -56,15 +76,23 @@ export function computeBalance(
     .filter((s) => s.status === "DELIVERED")
     .reduce((acc, s) => acc + (s.amount || 0), 0);
   const committedServices = services.reduce((acc, s) => acc + (s.amount || 0), 0);
-  const soldFromLines = sumSales(sales);
 
-  // autorytatywne sumy z arkusza mają pierwszeństwo (żółte komórki podsumowania)
+  // usługi zrealizowane: autorytatywna suma z arkusza barterowego Moniki,
+  // a jeśli brak — z pozycji usług.
   const deliveredServices =
     sheet?.servicesRealizedSheet != null
       ? sheet.servicesRealizedSheet
       : deliveredFromLines;
-  const soldFurniture =
-    sheet?.ordersTotalSheet != null ? sheet.ordersTotalSheet : soldFromLines;
+
+  // meble wzięte: liczymy NA ŻYWO z pozycji sprzedaży (kwota z barteru z arkusza
+  // "dane sprzedażowe"). Autorytatywną sumę Moniki trzymamy do porównania.
+  const soldFurniture = sumBarter(sales);
+  const monikaOrdersTotal = sheet?.ordersTotalSheet ?? null;
+  const ordersDiscrepancy =
+    monikaOrdersTotal != null ? soldFurniture - monikaOrdersTotal : 0;
+  const hasOrdersDiscrepancy =
+    monikaOrdersTotal != null && Math.abs(ordersDiscrepancy) >= 1;
+
   const available = deliveredServices - soldFurniture;
   const utilizationPct =
     deliveredServices > 0
@@ -83,6 +111,9 @@ export function computeBalance(
     isOverdrawn: available < 0,
     utilizationPct,
     limitUsedPct,
+    monikaOrdersTotal,
+    ordersDiscrepancy,
+    hasOrdersDiscrepancy,
   };
 }
 

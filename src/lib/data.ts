@@ -28,7 +28,13 @@ export async function getClientsWithBalances(): Promise<ClientWithBalance[]> {
     include: {
       services: { select: { amount: true, status: true } },
       sales: {
-        select: { amount: true, quantity: true, status: true, soldAt: true },
+        select: {
+          amount: true,
+          quantity: true,
+          status: true,
+          soldAt: true,
+          barterAmount: true,
+        },
       },
     },
   });

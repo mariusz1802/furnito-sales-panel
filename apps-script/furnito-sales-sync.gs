@@ -55,9 +55,32 @@ function onEditFurnito(e) {
   }
 }
 
-/** Wyślij pełną synchronizację (opcjonalnie: uruchom ręcznie lub z triggera czasowego). */
-function fullReconcile() {
-  postToPanel({ secret: SECRET, reconcile: true });
+/**
+ * Pełna synchronizacja: wysyła WSZYSTKIE wiersze arkusza do panelu naraz.
+ * Uruchom RĘCZNIE raz (albo z triggera czasowego), żeby zasilić panel całym
+ * arkuszem. replaceImport=true czyści stary import, robiąc arkusz źródłem prawdy.
+ */
+function fullSync() {
+  const sheet = SHEET_NAME
+    ? SpreadsheetApp.getActive().getSheetByName(SHEET_NAME)
+    : SpreadsheetApp.getActive().getSheets()[0];
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  const header = sheet.getRange(HEADER_ROW, 1, 1, lastCol).getValues()[0];
+  const firstDataRow = HEADER_ROW + 1;
+  if (lastRow < firstDataRow) return;
+  const rows = sheet
+    .getRange(firstDataRow, 1, lastRow - firstDataRow + 1, lastCol)
+    .getValues();
+  postToPanel({
+    secret: SECRET,
+    bulk: true,
+    header: header,
+    rows: rows,
+    firstRow: firstDataRow,
+    replaceImport: true,
+  });
+  Logger.log("Wysłano " + rows.length + " wierszy do panelu.");
 }
 
 function postToPanel(payload) {

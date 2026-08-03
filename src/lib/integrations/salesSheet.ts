@@ -291,6 +291,83 @@ export async function upsertFromSheetSale(
   return { ok: true };
 }
 
+/**
+ * Zbiorczy sync z wierszy przysłanych przez Apps Script (bez konta serwisowego).
+ * Używane przez webhook w trybie bulk: pełna synchronizacja arkusza "dane sprzedażowe".
+ *
+ * @param header  wiersz nagłówka arkusza
+ * @param rows    wiersze danych (od firstRow)
+ * @param firstRow numer pierwszego wiersza danych w arkuszu (1-based)
+ * @param replaceImport gdy true — czyści stare, ręcznie zaimportowane sprzedaże
+ *        (sheetRow = null), żeby arkusz stał się jedynym źródłem prawdy.
+ */
+export async function bulkSyncFromRows(
+  header: unknown[],
+  rows: unknown[][],
+  firstRow: number,
+  replaceImport: boolean,
+): Promise<{
+  ok: boolean;
+  upserted: number;
+  removedImport: number;
+  removedOrphans: number;
+  skipped: string[];
+  error?: string;
+}> {
+  const cols = detectColumns([header as string[]]);
+  if (!cols) {
+    return {
+      ok: false,
+      upserted: 0,
+      removedImport: 0,
+      removedOrphans: 0,
+      skipped: [],
+      error: "Nagłówek bez kolumn MEBEL / Marketplace.",
+    };
+  }
+  const clients = await prisma.client.findMany({
+    select: { id: true, name: true, slug: true },
+  });
+
+  const present = new Set<number>();
+  const skipped: string[] = [];
+  let upserted = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const sheetRow = firstRow + i;
+    const parsed = parseRow(cols, rows[i], sheetRow);
+    if (!parsed.ok) continue;
+    const r = await upsertFromSheetSale(parsed, clients);
+    if (r.ok) {
+      present.add(sheetRow);
+      upserted++;
+    } else if (r.skipped) {
+      skipped.push(`W${sheetRow}: ${r.skipped}`);
+    }
+  }
+
+  // stary import (sheetRow = null) — usuwamy, gdy arkusz jest źródłem prawdy
+  let removedImport = 0;
+  if (replaceImport) {
+    const del = await prisma.sale.deleteMany({ where: { sheetRow: null } });
+    removedImport = del.count;
+  }
+
+  // wiersze usunięte z arkusza (miały sheetRow, już ich nie ma)
+  const orphans = await prisma.sale.findMany({
+    where: { sheetRow: { not: null } },
+    select: { id: true, sheetRow: true },
+  });
+  const toDelete = orphans.filter((o) => o.sheetRow != null && !present.has(o.sheetRow));
+  let removedOrphans = 0;
+  if (toDelete.length) {
+    await prisma.sale.deleteMany({ where: { id: { in: toDelete.map((o) => o.id) } } });
+    removedOrphans = toDelete.length;
+  }
+
+  return { ok: true, upserted, removedImport, removedOrphans, skipped: skipped.slice(0, 15) };
+}
+
 /** Pełny pull arkusza sprzedażowego → reconcile bazy (dodaj/aktualizuj/usuń). */
 export async function reconcileSalesSheet(): Promise<{
   ok: boolean;

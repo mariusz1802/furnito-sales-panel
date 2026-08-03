@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { ArrowUpRight, TrendingDown, TrendingUp, Clock } from "lucide-react";
+import {
+  ArrowUpRight,
+  TrendingDown,
+  TrendingUp,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
 import { Card, Badge, ProgressBar, Money, Swatch } from "@/components/ui";
 import { balanceTone } from "@/lib/barter";
 import { clientStatusLabel, clientStatusTone, marketplaceLabel } from "@/lib/labels";
@@ -74,6 +80,24 @@ export function BalanceCard({ client }: { client: ClientWithBalance }) {
           </p>
         </div>
       </div>
+
+      {b.hasOrdersDiscrepancy && (
+        <div className="mt-3 flex items-start gap-1.5 rounded-lg bg-brass-50 px-3 py-2 text-xs text-brass-600 ring-1 ring-brass-100">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+          <span>
+            Rozbieżność z arkuszem Moniki:{" "}
+            <strong>
+              {b.ordersDiscrepancy > 0 ? "+" : "−"}
+              <Money value={Math.abs(b.ordersDiscrepancy)} />
+            </strong>
+            <br />
+            <span className="text-brass-600">
+              Monika: <Money value={b.monikaOrdersTotal ?? 0} /> · na żywo:{" "}
+              <Money value={b.soldFurniture} />
+            </span>
+          </span>
+        </div>
+      )}
 
       <div className="mt-3 flex items-center justify-between text-xs text-muted">
         <span>
