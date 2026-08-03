@@ -1,11 +1,14 @@
+import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL ?? "file:./dev.db",
-});
+const url = process.env.DATABASE_URL ?? "file:./dev.db";
+const adapter = /^postgres(ql)?:\/\//i.test(url)
+  ? new PrismaPg({ connectionString: url })
+  : new PrismaBetterSqlite3({ url });
 const prisma = new PrismaClient({ adapter });
 
 const DAY = 24 * 60 * 60 * 1000;
