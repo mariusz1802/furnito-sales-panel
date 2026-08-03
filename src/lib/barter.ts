@@ -84,14 +84,23 @@ export function computeBalance(
       ? sheet.servicesRealizedSheet
       : deliveredFromLines;
 
-  // meble wzięte: liczymy NA ŻYWO z pozycji sprzedaży (kwota z barteru z arkusza
-  // "dane sprzedażowe"). Autorytatywną sumę Moniki trzymamy do porównania.
-  const soldFurniture = sumBarter(sales);
+  // meble wzięte: gdy klient ma pozycje z arkusza "dane sprzedażowe" — liczymy
+  // NA ŻYWO (suma kwot z barteru). Gdy nie ma — fallback do autorytatywnej sumy
+  // Moniki (żeby nie pokazywać 0 klientom spoza tego arkusza).
   const monikaOrdersTotal = sheet?.ordersTotalSheet ?? null;
+  const soldBarterLines = sumBarter(sales);
+  const hasLiveSales = sales.some(ACTIVE_SALE);
+  const soldFurniture = hasLiveSales
+    ? soldBarterLines
+    : (monikaOrdersTotal ?? soldBarterLines);
+
+  // rozbieżność liczymy tylko gdy mamy oba źródła (live + suma Moniki)
   const ordersDiscrepancy =
-    monikaOrdersTotal != null ? soldFurniture - monikaOrdersTotal : 0;
+    hasLiveSales && monikaOrdersTotal != null
+      ? soldBarterLines - monikaOrdersTotal
+      : 0;
   const hasOrdersDiscrepancy =
-    monikaOrdersTotal != null && Math.abs(ordersDiscrepancy) >= 1;
+    hasLiveSales && monikaOrdersTotal != null && Math.abs(ordersDiscrepancy) >= 1;
 
   const available = deliveredServices - soldFurniture;
   const utilizationPct =
