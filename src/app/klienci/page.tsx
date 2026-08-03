@@ -3,6 +3,7 @@ import { Plus, Users } from "lucide-react";
 import { getClientsWithBalances } from "@/lib/data";
 import { PageHeader } from "@/components/PageHeader";
 import { BalanceCard } from "@/components/BalanceCard";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { Money } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export default async function ClientsPage({
 
   return (
     <>
+      <LiveRefresh seconds={15} />
       <PageHeader
         eyebrow="Barter · producenci"
         title="Klienci"

@@ -1,33 +1,27 @@
 /**
  * Furnito — synchronizacja arkusza BARTEROWEGO Moniki → panel (źródło prawdy salda).
  *
- * MODEL: JEDEN arkusz "Barter — klienci", po jednej KARCIE (zakładce) na klienta.
- * Nazwa karty = nazwa klienta. Na każdej karcie dwie stałe komórki z sumami:
- *   ORDERS_CELL   = KWOTA ZAMÓWIEŃ (meble wzięte)
- *   SERVICES_CELL = KWOTA ZREALIZOWANYCH ZLECEŃ (usługi)
- * Monika trzyma swój szczegół niżej; te dwie komórki mogą być formułami (=SUMA...).
+ * DODAJESZ TEN SKRYPT DO KAŻDEGO PLIKU MONIKI (jeden plik = jeden klient).
+ * Skrypt sam znajduje dwie liczby PO ETYKIETACH (działa mimo różnych układów):
+ *   • "KWOTA ZAMÓWIEŃ"              → ile my u niego nazamawialiśmy (meble wzięte)
+ *   • "KWOTA ZREALIZOWANYCH ZLECEŃ" → ile zrobiliśmy dla niego (usługi)
+ * Wartość bierze z komórki DOKŁADNIE POD etykietą. Nazwę klienta czyta z A2
+ * (np. "Meble Cezar"), a jak pusto — z nazwy pliku.
  *
- * UNIWERSALNE: skrypt instalujesz RAZ. Obsługuje wszystkie karty — obecne i przyszłe.
- *   • nowa karta (nowy klient) → panel sam założy klienta,
- *   • usunięcie karty → nic nie trzeba robić,
- *   • NIGDY nie zmieniasz skryptu przy dodaniu/usunięciu klienta.
+ * URUCHOMIENIE (raz na każdy plik):
+ *   1. Plik Moniki → Rozszerzenia → Apps Script → wklej ten kod.
+ *   2. WEBHOOK_URL i SECRET są już wpisane (te same co w panelu).
+ *   3. Uruchom installBarterTrigger (zaakceptuj uprawnienia).
+ *   4. Uruchom syncNow (od razu wyśle bieżące sumy).
  *
- * URUCHOMIENIE (raz):
- *   1. Ten arkusz → Rozszerzenia → Apps Script, wklej ten plik.
- *   2. Ustaw WEBHOOK_URL i SECRET (jak w panelu / drugim skrypcie).
- *   3. Sprawdź ORDERS_CELL / SERVICES_CELL (gdzie na karcie są te dwie liczby).
- *   4. Uruchom installBarterTrigger (raz, zaakceptuj uprawnienia).
- *   5. (opcjonalnie) Uruchom syncAllCards, żeby od razu wysłać wszystkie karty.
+ * WAŻNE: suma zrealizowanych usług musi być w komórce POD nagłówkiem
+ * "KWOTA ZREALIZOWANYCH ZLECEŃ". Jeśli u kogoś jest gdzie indziej — przesuń ją pod nagłówek.
  */
 
 const WEBHOOK_URL = "https://furnito-sales-panel.vercel.app/api/webhooks/sheets";
 const SECRET = "5550af1c4b2fc1e0a4746aad7545662056d370cdb2abf07c";
-const ORDERS_CELL = "B1";   // KWOTA ZAMÓWIEŃ
-const SERVICES_CELL = "B2"; // KWOTA ZREALIZOWANYCH ZLECEŃ
-// karty pomijane (szablon/instrukcje) — nazwy zaczynające się od "_" też są pomijane
-const IGNORE_TABS = ["SZABLON", "INSTRUKCJA", "SUMA"];
 
-/** Instalowany trigger — uruchom RAZ. */
+/** Instalowany trigger — uruchom RAZ w każdym pliku. */
 function installBarterTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === "onEditBarter") ScriptApp.deleteTrigger(t);
@@ -39,47 +33,67 @@ function installBarterTrigger() {
   Logger.log("Barter sync na żywo aktywny.");
 }
 
-function isIgnored(name) {
-  if (!name || name.charAt(0) === "_") return true;
-  return IGNORE_TABS.indexOf(name.toUpperCase()) !== -1;
+function norm(v) {
+  return String(v == null ? "" : v).toUpperCase();
 }
 
-function sendCard(sheet) {
-  const name = sheet.getName();
-  if (isIgnored(name)) return;
-  const orders = sheet.getRange(ORDERS_CELL).getValue();
-  const services = sheet.getRange(SERVICES_CELL).getValue();
+/** Znajdź sumy po etykietach (wartość w komórce pod etykietą). */
+function readTotals(sheet) {
+  const maxR = Math.min(10, sheet.getLastRow());
+  const maxC = Math.min(30, sheet.getLastColumn());
+  if (maxR < 2) return null;
+  const v = sheet.getRange(1, 1, maxR, maxC).getValues();
+  let orders = null,
+    services = null;
+  for (let r = 0; r < v.length - 1; r++) {
+    for (let c = 0; c < v[r].length; c++) {
+      const t = norm(v[r][c]);
+      if (orders == null && (t.indexOf("ZAMÓWIE") >= 0 || t.indexOf("ZAMOWIE") >= 0)) {
+        orders = v[r + 1][c];
+      }
+      if (
+        services == null &&
+        (t.indexOf("ZREALIZOWAN") >= 0 || t.indexOf("ZREALZIOWAN") >= 0)
+      ) {
+        services = v[r + 1][c];
+      }
+    }
+  }
+  const clientName =
+    String((v[1] && v[1][0]) || "").trim() || SpreadsheetApp.getActive().getName();
+  return { clientName: clientName, orders: orders, services: services };
+}
+
+function sendTotals(sheet) {
+  const d = readTotals(sheet);
+  if (!d || !d.clientName) return;
   UrlFetchApp.fetch(WEBHOOK_URL, {
     method: "post",
     contentType: "application/json",
     payload: JSON.stringify({
       secret: SECRET,
       monika: true,
-      client: name,
-      ordersTotal: orders,
-      servicesRealized: services,
+      client: d.clientName,
+      ordersTotal: d.orders,
+      servicesRealized: d.services,
     }),
     muteHttpExceptions: true,
   });
+  Logger.log(
+    "Wysłano: " + d.clientName + " | zamówienia: " + d.orders + " | zrealizowane: " + d.services,
+  );
 }
 
-/** Po każdej edycji karty wysyła jej sumy do panelu. */
+/** Po każdej edycji wysyła aktualne sumy tego arkusza. */
 function onEditBarter(e) {
   try {
-    sendCard(e.range.getSheet());
+    sendTotals(e.range.getSheet());
   } catch (err) {
     Logger.log("onEditBarter: " + err);
   }
 }
 
-/** Wyślij WSZYSTKIE karty naraz (uruchom ręcznie raz / z triggera czasowego). */
-function syncAllCards() {
-  const sheets = SpreadsheetApp.getActive().getSheets();
-  let n = 0;
-  for (let i = 0; i < sheets.length; i++) {
-    if (isIgnored(sheets[i].getName())) continue;
-    sendCard(sheets[i]);
-    n++;
-  }
-  Logger.log("Wysłano " + n + " kart.");
+/** Wyślij teraz (uruchom ręcznie po instalacji). */
+function syncNow() {
+  sendTotals(SpreadsheetApp.getActive().getActiveSheet());
 }
