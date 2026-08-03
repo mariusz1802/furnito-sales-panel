@@ -8,6 +8,7 @@ import {
   reconcileSalesSheet,
   upsertFromSheetSale,
 } from "@/lib/integrations/salesSheet";
+import { upsertMonikaTotals } from "@/lib/integrations/barterSheet";
 
 /**
  * Webhook wyzwalany przez Apps Script (trigger onEdit) w arkuszu "dane sprzedażowe".
@@ -34,6 +35,11 @@ type Payload = {
   rows?: string[][];
   firstRow?: number;
   replaceImport?: boolean;
+  // tryb "Monika": autorytatywne sumy z karty barterowej (jedna karta = klient)
+  monika?: boolean;
+  client?: string;
+  ordersTotal?: number | null;
+  servicesRealized?: number | null;
 };
 
 export async function POST(request: Request) {
@@ -54,6 +60,24 @@ export async function POST(request: Request) {
 
   if (body.secret !== secret) {
     return NextResponse.json({ ok: false, error: "Zły sekret." }, { status: 401 });
+  }
+
+  // Tryb "Monika": autorytatywne sumy z karty barterowej (jedna karta = klient)
+  if (body.monika) {
+    if (!body.client) {
+      return NextResponse.json(
+        { ok: false, error: "Monika wymaga: client (nazwa karty)." },
+        { status: 400 },
+      );
+    }
+    const r = await upsertMonikaTotals({
+      client: body.client,
+      ordersTotal: body.ordersTotal,
+      servicesRealized: body.servicesRealized,
+    });
+    revalidatePath("/");
+    revalidatePath("/klienci");
+    return NextResponse.json(r, { status: r.ok ? 200 : 422 });
   }
 
   // Tryb zbiorczy: pełna synchronizacja wszystkich wierszy z Apps Script

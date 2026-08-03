@@ -196,7 +196,7 @@ const GENERIC_WORDS = new Set([
  * ("Meble Cezar", "KMK Meble", "RM Moś"). Porównujemy wyróżniające słowa nazwy
  * klienta z tekstem producenta (dwukierunkowo), pomijając słowa generyczne.
  */
-function matchClient(
+export function matchClientByProducer(
   clients: ClientLite[],
   producer: string | null,
 ): ClientLite | null {
@@ -246,7 +246,7 @@ export async function upsertFromSheetSale(
   clients: ClientLite[],
 ): Promise<{ ok: boolean; skipped?: string }> {
   if (!s.ok) return { ok: false, skipped: "brak nazwy mebla" };
-  const client = matchClient(clients, s.producer);
+  const client = matchClientByProducer(clients, s.producer);
   if (!client) return { ok: false, skipped: `nie dopasowano klienta (producent: ${s.producer ?? "—"})` };
 
   const data = {
