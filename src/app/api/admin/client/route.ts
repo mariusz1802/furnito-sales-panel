@@ -18,6 +18,8 @@ type Body = {
   email?: string;
   saleAlerts?: boolean;
   weeklyReport?: boolean;
+  // testSms
+  text?: string;
 };
 
 export async function POST(request: Request) {
@@ -71,6 +73,30 @@ export async function POST(request: Request) {
     });
     revalidatePath("/powiadomienia");
     return NextResponse.json({ ok: true, added: b.name });
+  }
+
+  // Realny test SMS na jeden numer (omija globalny przełącznik symulacji).
+  if (b.action === "testSms" && b.phone) {
+    const token = process.env.SMSAPI_TOKEN;
+    if (!token) {
+      return NextResponse.json({ ok: false, error: "Brak SMSAPI_TOKEN" }, { status: 400 });
+    }
+    const body = new URLSearchParams({
+      to: b.phone,
+      message: b.text || "Furnito: testowy SMS z panelu.",
+      format: "json",
+    });
+    if (process.env.SMSAPI_FROM) body.set("from", process.env.SMSAPI_FROM);
+    const res = await fetch("https://api.smsapi.pl/sms.do", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+    const data = (await res.json()) as { error?: number; message?: string };
+    return NextResponse.json({ ok: res.ok && !data.error, response: data });
   }
 
   return NextResponse.json({ ok: false, error: "Nieznana akcja." }, { status: 400 });
