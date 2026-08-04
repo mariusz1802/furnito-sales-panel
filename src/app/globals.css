@@ -118,6 +118,13 @@ body {
   }
 }
 
+/* Ostre krawędzie wszędzie — border-radius 0. */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
 /* Eleganckie przyciski: płynne przejścia + subtelne "wciśnięcie". */
 @media (hover: hover) {
   button {
