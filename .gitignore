@@ -68,3 +68,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# tymczasowe pliki (zrzuty, skrypty diagnostyczne)
+/_*.png
+/_*.mjs
+/_*.js
