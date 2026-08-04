@@ -48,7 +48,7 @@ export async function getClientsWithBalances(): Promise<ClientWithBalance[]> {
       (s) => s.status !== "CANCELLED" && s.status !== "RESIGNED",
     );
     const lastSaleAt = activeSales.reduce<Date | null>(
-      (acc, s) => (!acc || s.soldAt > acc ? s.soldAt : acc),
+      (acc, s) => (s.soldAt && (!acc || s.soldAt > acc) ? s.soldAt : acc),
       null,
     );
     return {
@@ -122,14 +122,14 @@ export type RecentSale = {
   quantity: number;
   marketplace: string;
   status: string;
-  soldAt: Date;
+  soldAt: Date | null;
   clientName: string;
   clientSlug: string;
 };
 
 export async function getRecentSales(limit = 12): Promise<RecentSale[]> {
   const sales = await prisma.sale.findMany({
-    orderBy: { soldAt: "desc" },
+    orderBy: { soldAt: { sort: "desc", nulls: "last" } },
     take: limit,
     include: { client: { select: { name: true, slug: true } } },
   });
@@ -163,7 +163,7 @@ export async function getWeeklyTimeline(weeks = 8) {
     const start = now - (i + 1) * WEEK;
     const end = now - i * WEEK;
     const inWeek = sales.filter(
-      (s) => s.soldAt.getTime() >= start && s.soldAt.getTime() < end,
+      (s) => s.soldAt && s.soldAt.getTime() >= start && s.soldAt.getTime() < end,
     );
     buckets.push({
       label: `${weeks - i} tydz.`,
@@ -239,7 +239,7 @@ export async function getClientBySlug(slug: string) {
     where: { slug },
     include: {
       services: { orderBy: { date: "desc" } },
-      sales: { orderBy: { soldAt: "desc" } },
+      sales: { orderBy: { soldAt: { sort: "desc", nulls: "last" } } },
     },
   });
   if (!client) return null;

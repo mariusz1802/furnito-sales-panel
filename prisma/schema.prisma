@@ -89,7 +89,7 @@ model Sale {
   marketplace Marketplace @default(MANUAL)
   externalId  String?     // id zamówienia z marketplace
   status      SaleStatus  @default(NEW)
-  soldAt      DateTime    @default(now())
+  soldAt      DateTime?   @default(now()) // null = sprzedaż bez daty w arkuszu
   createdAt   DateTime    @default(now())
 
   // --- kolumny z arkusza "dane sprzedażowe" (sync dwukierunkowy) ---

@@ -41,7 +41,7 @@ export function SalesFeed({
                 </Link>
               )}
               {s.buyer && <span>· {s.buyer}</span>}
-              <span>· {timeAgo(s.soldAt)}</span>
+              <span>· {s.soldAt ? timeAgo(s.soldAt) : "bez daty"}</span>
             </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">

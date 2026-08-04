@@ -266,7 +266,7 @@ export async function upsertFromSheetSale(
     transportAmount: s.transportAmount,
     cashStatus: s.cashStatus,
     channel: s.channel,
-    soldAt: s.soldAt ?? undefined,
+    soldAt: s.soldAt, // null gdy arkusz nie ma daty → sprzedaż "bez daty"
     shippedAt: s.shippedAt,
     receivedAt: s.receivedAt,
     sheetRow: s.sheetRow,
