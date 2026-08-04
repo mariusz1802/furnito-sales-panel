@@ -41,7 +41,7 @@ export function Brand() {
         priority
         className="h-6 w-auto"
       />
-      <span className="rounded-full bg-brand-400 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black">
+      <span className="hidden bg-brand-400 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black md:inline-block">
         panel
       </span>
     </Link>
