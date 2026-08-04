@@ -118,6 +118,21 @@ body {
   }
 }
 
+/* Eleganckie przyciski: płynne przejścia + subtelne "wciśnięcie". */
+@media (hover: hover) {
+  button {
+    transition:
+      transform 0.12s ease,
+      box-shadow 0.18s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      opacity 0.15s ease;
+  }
+  button:not(:disabled):active {
+    transform: translateY(1px);
+  }
+}
+
 /* Druk / PDF: pokaż tylko raport (#report-print), ukryj resztę (menu, formularz). */
 @media print {
   body * {

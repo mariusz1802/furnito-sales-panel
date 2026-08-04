@@ -100,10 +100,7 @@ export function BalanceCard({ client }: { client: ClientWithBalance }) {
       )}
 
       <div className="mt-3 flex items-center justify-between text-xs text-muted">
-        <span>
-          {client.salesCount} sprzedaży
-          {client.handledBy && <span> · opiekun: {client.handledBy}</span>}
-        </span>
+        <span>{client.salesCount} sprzedaży</span>
         {client.lastSaleAt ? (
           <span className="flex items-center gap-1">
             <Clock size={12} /> {timeAgo(client.lastSaleAt)}

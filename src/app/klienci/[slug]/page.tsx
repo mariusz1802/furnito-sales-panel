@@ -101,9 +101,6 @@ export default async function ClientDetailPage({
                 {marketplaces.map((m) => (
                   <Badge key={m}>{marketplaceLabel[m] ?? m}</Badge>
                 ))}
-                {client.handledBy && (
-                  <span className="text-xs text-muted">prowadzi: {client.handledBy}</span>
-                )}
               </div>
 
               <div className="mt-4 flex items-baseline justify-between">
