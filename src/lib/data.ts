@@ -129,7 +129,12 @@ export type RecentSale = {
 
 export async function getRecentSales(limit = 12): Promise<RecentSale[]> {
   const sales = await prisma.sale.findMany({
-    orderBy: { soldAt: { sort: "desc", nulls: "last" } },
+    // przy tej samej dacie: kolejność wg wiersza arkusza (nowszy wiersz = wyżej)
+    orderBy: [
+      { soldAt: { sort: "desc", nulls: "last" } },
+      { sheetRow: { sort: "desc", nulls: "last" } },
+      { createdAt: "desc" },
+    ],
     take: limit,
     include: { client: { select: { name: true, slug: true } } },
   });
@@ -239,7 +244,13 @@ export async function getClientBySlug(slug: string) {
     where: { slug },
     include: {
       services: { orderBy: { date: "desc" } },
-      sales: { orderBy: { soldAt: { sort: "desc", nulls: "last" } } },
+      sales: {
+        orderBy: [
+          { soldAt: { sort: "desc", nulls: "last" } },
+          { sheetRow: { sort: "desc", nulls: "last" } },
+          { createdAt: "desc" },
+        ],
+      },
     },
   });
   if (!client) return null;
