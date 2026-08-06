@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { SaleStatus } from "@/generated/prisma/client";
+import { FURNITO_REPORT_SLUG } from "@/lib/reportShared";
 import { formatPLN } from "@/lib/format";
 import { resolveFabric } from "@/lib/fabrics";
 import { wooProductReport, type StoreProductReport } from "@/lib/integrations/woocommerce";
@@ -152,7 +153,7 @@ export async function getClientReport(
   return { client, from, to, ...aggregateSales(sales) };
 }
 
-export const FURNITO_REPORT_SLUG = "__wszyscy__";
+export { FURNITO_REPORT_SLUG };
 
 /**
  * Raport ZBIORCZY Furnito — cała sprzedaż barterowa (wszyscy partnerzy razem)

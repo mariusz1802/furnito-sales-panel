@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, StatCard, SectionTitle, Money } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { RangePresets } from "@/components/RangePresets";
+import { VoiceReportButton } from "@/components/VoiceReportButton";
 import { marketplaceLabel } from "@/lib/labels";
 import {
   ShoppingBag,
@@ -134,6 +135,7 @@ export default async function ReportsPage({
           </button>
         </form>
         <RangePresets />
+        <VoiceReportButton clients={clients} />
       </Card>
 
       {slug && !isFurnito && !report && (
