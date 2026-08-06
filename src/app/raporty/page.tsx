@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getClientReport } from "@/lib/reports";
+import { getClientReport, getFurnitoReport, FURNITO_REPORT_SLUG } from "@/lib/reports";
 import { wooProductReport, type StoreProductReport } from "@/lib/integrations/woocommerce";
 import { shoperProductReport } from "@/lib/integrations/shoper";
 import { prestashopProductReport } from "@/lib/integrations/prestashop";
@@ -42,16 +42,24 @@ export default async function ReportsPage({
   const from = sp.from ? new Date(sp.from) : defFrom;
   const to = sp.to ? new Date(`${sp.to}T23:59:59`) : today;
   const slug = sp.client ?? "";
+  const isFurnito = slug === FURNITO_REPORT_SLUG;
 
-  const report = slug ? await getClientReport(slug, from, to) : null;
+  const report = isFurnito
+    ? await getFurnitoReport(from, to)
+    : slug
+      ? await getClientReport(slug, from, to)
+      : null;
   const maxUnits = report?.bestsellers[0]?.units ?? 1;
+  const topColor = report?.colors[0] ?? null;
+  const partnerMax = report?.byPartner?.[0]?.amount ?? 1;
 
-  // sprzedaż ze sklepu klienta (na żywo), jeśli podłączony WooCommerce
-  const storeConn = slug
-    ? await prisma.storeConnection.findFirst({
-        where: { active: true, client: { slug } },
-      })
-    : null;
+  // sprzedaż ze sklepu klienta (na żywo) — tylko dla pojedynczego partnera
+  const storeConn =
+    slug && !isFurnito
+      ? await prisma.storeConnection.findFirst({
+          where: { active: true, client: { slug } },
+        })
+      : null;
   let store: StoreProductReport | null = null;
   let storeError: string | null = null;
   if (storeConn?.active) {
@@ -86,7 +94,7 @@ export default async function ReportsPage({
       <PageHeader
         eyebrow="Raporty · sprzedaż"
         title="Raporty"
-        subtitle="Wybierz klienta i okres — panel wygeneruje raport bestsellerów i kolorów. Zapisz jako PDF."
+        subtitle="Raport dla Furnito (wszyscy partnerzy) albo dla wybranego partnera. Co się sprzedało, najpopularniejszy kolor, kanały. Zapisz jako PDF."
       />
 
       <Card className="no-print p-5">
@@ -96,16 +104,21 @@ export default async function ReportsPage({
           className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end"
         >
           <label className="block">
-            <span className="eyebrow mb-1 block">Klient</span>
+            <span className="eyebrow mb-1 block">Raport dla</span>
             <select name="client" defaultValue={slug} className={inputCls} required>
               <option value="" disabled>
-                — wybierz klienta —
+                — wybierz —
               </option>
-              {clients.map((c) => (
-                <option key={c.slug} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
+              <option value={FURNITO_REPORT_SLUG}>
+                ⭐ Furnito — wszyscy partnerzy
+              </option>
+              <optgroup label="Partnerzy barterowi">
+                {clients.map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </label>
           <label className="block">
@@ -123,7 +136,7 @@ export default async function ReportsPage({
         <RangePresets />
       </Card>
 
-      {slug && !report && (
+      {slug && !isFurnito && !report && (
         <p className="mt-6 text-sm text-muted">Nie znaleziono klienta.</p>
       )}
 
@@ -223,14 +236,19 @@ export default async function ReportsPage({
             </div>
           )}
 
-          <SectionTitle eyebrow="Panel · barter" title="Nasza sprzedaż barterowa" />
+          <SectionTitle
+            eyebrow={isFurnito ? "Panel · całość" : "Panel · barter"}
+            title={isFurnito ? "Sprzedaż wszystkich partnerów" : "Nasza sprzedaż barterowa"}
+          />
           {report.orderCount === 0 ? (
             <Card className="p-6 text-sm text-muted">
-              Brak sprzedaży barterowej w tym okresie dla klienta {report.client.name}.
+              {isFurnito
+                ? "Brak sprzedaży w tym okresie."
+                : `Brak sprzedaży barterowej w tym okresie dla klienta ${report.client.name}.`}
             </Card>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard
                   label="Wartość sprzedaży"
                   value={<Money value={report.totalAmount} />}
@@ -243,11 +261,54 @@ export default async function ReportsPage({
                   icon={<Package size={20} />}
                 />
                 <StatCard
+                  label="Najpopularniejszy kolor"
+                  value={topColor ? topColor.name : "—"}
+                  icon={<Palette size={20} />}
+                  hint={topColor ? `${topColor.units} szt.` : "brak w nazwach"}
+                />
+                <StatCard
                   label="Rozpoznanych kolorów"
                   value={String(report.colors.length)}
                   icon={<Palette size={20} />}
                 />
               </div>
+
+              {report.byPartner && report.byPartner.length > 0 && (
+                <div>
+                  <SectionTitle eyebrow="Kto sprzedał" title="Podział na partnerów" />
+                  <Card className="overflow-hidden p-0">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-line text-left text-xs text-muted">
+                          <th className="px-4 py-2 font-medium">Partner</th>
+                          <th className="px-4 py-2 text-right font-medium">Szt.</th>
+                          <th className="px-4 py-2 text-right font-medium">Wartość</th>
+                          <th className="w-24 px-4 py-2 font-medium" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.byPartner.map((p) => (
+                          <tr key={p.slug ?? p.name} className="border-b border-line/60 last:border-0">
+                            <td className="px-4 py-2 text-ink">{p.name}</td>
+                            <td className="px-4 py-2 text-right font-medium text-ink">{p.units}</td>
+                            <td className="px-4 py-2 text-right text-muted">
+                              <Money value={p.amount} />
+                            </td>
+                            <td className="px-4 py-2">
+                              <div className="h-1.5 rounded-full bg-stone-100">
+                                <div
+                                  className="h-1.5 rounded-full bg-brand-500"
+                                  style={{ width: `${Math.round((p.amount / partnerMax) * 100)}%` }}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Card>
+                </div>
+              )}
 
               <div>
                 <SectionTitle eyebrow="Co się sprzedaje" title="Bestsellery" />

@@ -59,6 +59,12 @@ export async function getTopProductsByShop(
 
 export type ChannelStat = { name: string; units: number; amount: number };
 export type ColorStat = { name: string; units: number };
+export type PartnerStat = {
+  name: string;
+  slug: string | null;
+  units: number;
+  amount: number;
+};
 
 export type ClientReport = {
   client: { name: string; slug: string };
@@ -70,36 +76,19 @@ export type ClientReport = {
   bestsellers: TopProduct[];
   channels: ChannelStat[];
   colors: ColorStat[];
+  // tylko w raporcie zbiorczym Furnito: podział sprzedaży na partnerów
+  byPartner?: PartnerStat[];
 };
 
-/** Raport sprzedaży jednego klienta w zakresie [from, to]. */
-export async function getClientReport(
-  clientSlug: string,
-  from: Date,
-  to: Date,
-): Promise<ClientReport | null> {
-  const client = await prisma.client.findUnique({
-    where: { slug: clientSlug },
-    select: { name: true, slug: true },
-  });
-  if (!client) return null;
+type SaleLite = {
+  productName: string;
+  quantity: number;
+  amount: number;
+  marketplace: string;
+};
 
-  const sales = await prisma.sale.findMany({
-    where: {
-      client: { slug: clientSlug },
-      soldAt: { gte: from, lte: to },
-      ...activeSale,
-    },
-    select: {
-      productName: true,
-      variant: true,
-      fabric: true,
-      quantity: true,
-      amount: true,
-      marketplace: true,
-    },
-  });
-
+/** Wspólna agregacja sprzedaży: bestsellery + kanały + kolory (kod tkaniny → kolor). */
+function aggregateSales(sales: SaleLite[]) {
   const products = new Map<string, TopProduct>();
   const channels = new Map<string, ChannelStat>();
   const colors = new Map<string, ColorStat>();
@@ -110,7 +99,6 @@ export async function getClientReport(
     totalAmount += s.amount;
     totalUnits += s.quantity;
 
-    // kod tkaniny → czytelna nazwa + kolor
     const { display, color } = resolveFabric(s.productName);
 
     const p = products.get(display) ?? { name: display, units: 0, amount: 0 };
@@ -131,15 +119,74 @@ export async function getClientReport(
   }
 
   return {
-    client,
-    from,
-    to,
     totalAmount,
     totalUnits,
     orderCount: sales.length,
     bestsellers: [...products.values()].sort((a, b) => b.units - a.units).slice(0, 15),
     channels: [...channels.values()].sort((a, b) => b.amount - a.amount),
     colors: [...colors.values()].sort((a, b) => b.units - a.units),
+  };
+}
+
+/** Raport sprzedaży jednego klienta w zakresie [from, to]. */
+export async function getClientReport(
+  clientSlug: string,
+  from: Date,
+  to: Date,
+): Promise<ClientReport | null> {
+  const client = await prisma.client.findUnique({
+    where: { slug: clientSlug },
+    select: { name: true, slug: true },
+  });
+  if (!client) return null;
+
+  const sales = await prisma.sale.findMany({
+    where: {
+      client: { slug: clientSlug },
+      soldAt: { gte: from, lte: to },
+      ...activeSale,
+    },
+    select: { productName: true, quantity: true, amount: true, marketplace: true },
+  });
+
+  return { client, from, to, ...aggregateSales(sales) };
+}
+
+export const FURNITO_REPORT_SLUG = "__wszyscy__";
+
+/**
+ * Raport ZBIORCZY Furnito — cała sprzedaż barterowa (wszyscy partnerzy razem)
+ * w zakresie [from, to]: bestsellery, najpopularniejsze kolory, kanały oraz
+ * podział na partnerów (kto ile sprzedał). Uwzględnia też sprzedaż nieprzypisaną.
+ */
+export async function getFurnitoReport(from: Date, to: Date): Promise<ClientReport> {
+  const sales = await prisma.sale.findMany({
+    where: { soldAt: { gte: from, lte: to }, ...activeSale },
+    select: {
+      productName: true,
+      quantity: true,
+      amount: true,
+      marketplace: true,
+      client: { select: { name: true, slug: true } },
+    },
+  });
+
+  const partners = new Map<string, PartnerStat>();
+  for (const s of sales) {
+    const key = s.client?.slug ?? "__nieprzypisane__";
+    const name = s.client?.name ?? "Nieprzypisane";
+    const p = partners.get(key) ?? { name, slug: s.client?.slug ?? null, units: 0, amount: 0 };
+    p.units += s.quantity;
+    p.amount += s.amount;
+    partners.set(key, p);
+  }
+
+  return {
+    client: { name: "Furnito — wszyscy partnerzy", slug: FURNITO_REPORT_SLUG },
+    from,
+    to,
+    ...aggregateSales(sales),
+    byPartner: [...partners.values()].sort((a, b) => b.amount - a.amount),
   };
 }
 
