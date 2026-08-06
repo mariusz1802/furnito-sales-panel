@@ -379,7 +379,7 @@ export async function updateSaleStatusAction(formData: FormData) {
     try {
       const r = await updateSaleRow(sale.sheetRow, {
         productName: sale.productName,
-        producer: sale.producer ?? sale.client.name,
+        producer: sale.producer ?? sale.client?.name,
         barterAmount: sale.barterAmount,
         channel: sale.channel,
         marketplace: sale.marketplace,

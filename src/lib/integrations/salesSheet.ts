@@ -251,11 +251,13 @@ export async function upsertFromSheetSale(
   clients: ClientLite[],
 ): Promise<{ ok: boolean; skipped?: string }> {
   if (!s.ok) return { ok: false, skipped: "brak nazwy mebla" };
+  // Producent bez dopasowania do klienta → NIE pomijamy. Zapisujemy sprzedaż jako
+  // "nieprzypisaną" (clientId=null), żeby nic nie ginęło z listy ani z podsumowań.
+  // Gdy producent zostanie poprawiony w arkuszu, kolejny sync przypnie ją do klienta.
   const client = matchClientByProducer(clients, s.producer);
-  if (!client) return { ok: false, skipped: `nie dopasowano klienta (producent: ${s.producer ?? "—"})` };
 
   const data = {
-    clientId: client.id,
+    clientId: client?.id ?? null,
     productName: s.productName,
     buyer: s.buyer,
     amount: s.amount,

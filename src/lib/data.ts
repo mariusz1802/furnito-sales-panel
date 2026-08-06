@@ -122,9 +122,10 @@ export type RecentSale = {
   quantity: number;
   marketplace: string;
   status: string;
+  producer: string | null;
   soldAt: Date | null;
-  clientName: string;
-  clientSlug: string;
+  clientName: string | null; // null = sprzedaż nieprzypisana
+  clientSlug: string | null;
 };
 
 export async function getRecentSales(limit = 12): Promise<RecentSale[]> {
@@ -147,9 +148,10 @@ export async function getRecentSales(limit = 12): Promise<RecentSale[]> {
     quantity: s.quantity,
     marketplace: s.marketplace,
     status: s.status,
+    producer: s.producer,
     soldAt: s.soldAt,
-    clientName: s.client.name,
-    clientSlug: s.client.slug,
+    clientName: s.client?.name ?? null,
+    clientSlug: s.client?.slug ?? null,
   }));
 }
 

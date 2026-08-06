@@ -78,8 +78,8 @@ enum ServiceStatus {
 // Sprzedany mebel (KWOTA ZAMÓWIEŃ) — zmniejsza saldo barteru
 model Sale {
   id          String      @id @default(cuid())
-  clientId    String
-  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId    String?     // null = sprzedaż "nieprzypisana" (producent bez dopasowania do klienta)
+  client      Client?     @relation(fields: [clientId], references: [id], onDelete: Cascade)
   productName String      // "MEBEL" — np. "Wersalka AURORA"
   variant     String?     // kolor, np. "Beżowa", "Jasna Szara"
   fabric      String?     // tkanina

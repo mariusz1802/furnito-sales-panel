@@ -50,6 +50,7 @@ export default async function ClientDetailPage({
     quantity: s.quantity,
     marketplace: s.marketplace,
     status: s.status,
+    producer: s.producer,
     soldAt: s.soldAt,
     clientName: client.name,
     clientSlug: client.slug,

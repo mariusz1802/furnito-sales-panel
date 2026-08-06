@@ -32,14 +32,19 @@ export function SalesFeed({
               {s.variant && <span className="text-muted"> · {s.variant}</span>}
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-              {showClient && (
-                <Link
-                  href={`/klienci/${s.clientSlug}`}
-                  className="font-medium text-stone-500 hover:text-brand-600"
-                >
-                  {s.clientName}
-                </Link>
-              )}
+              {showClient &&
+                (s.clientSlug ? (
+                  <Link
+                    href={`/klienci/${s.clientSlug}`}
+                    className="font-medium text-stone-500 hover:text-brand-600"
+                  >
+                    {s.clientName}
+                  </Link>
+                ) : (
+                  <span className="font-medium text-brass-600">
+                    Nieprzypisane{s.producer ? ` · ${s.producer}` : ""}
+                  </span>
+                ))}
               {s.buyer && <span>· {s.buyer}</span>}
               <span>· {s.soldAt ? timeAgo(s.soldAt) : "bez daty"}</span>
             </div>
